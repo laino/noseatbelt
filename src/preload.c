@@ -1,5 +1,5 @@
 /*
- * Library for use with LD_PRELOAD=noseatbelt.so
+ * Library for use with LD_PRELOAD.
  *
  * See also:
  *      https://gist.github.com/apsun/1e144bf7639b22ff0097171fa0f8c6b1
