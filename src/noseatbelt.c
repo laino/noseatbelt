@@ -1,9 +1,8 @@
 #include <stdio.h>
-#include <sys/mman.h>
 #include <inttypes.h>
-#include <Zydis/Zydis.h>
+#include "Zydis/Zydis.h"
 
-#define DEBUG 1
+#define DEBUG 0
 #define MAX_TRAMPOLINE_LENGTH 100
 
 typedef struct SeatbeltState_ {
@@ -11,7 +10,7 @@ typedef struct SeatbeltState_ {
     ZydisDecoder decoder;
 
     // Pointer to current instruction
-    ZyanU8* current;
+    ZyanU8 *current;
     
     // Current instruction
     ZydisDecodedInstruction instruction;
@@ -84,7 +83,7 @@ static ZyanU8 register_code(ZydisRegister reg) {
     }
 }
 
-static ZyanU8 decode_next(SeatbeltState* state, ZyanU8** start, ZyanU8* end) {
+static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end) {
     ZyanStatus status = ZydisDecoderDecodeBuffer(&state->decoder, *start, end - *start, &state->instruction);
 
     if (DEBUG) {
@@ -97,26 +96,26 @@ static ZyanU8 decode_next(SeatbeltState* state, ZyanU8** start, ZyanU8* end) {
     return ZYAN_SUCCESS(status);
 }
 
-void init_seatbelt(SeatbeltState* state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
+void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
     state->current = 0;
     state->trampolines = 0;
 
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }
 
-static ZyanU8 check_trampoline(TrampolineInformation* info, SeatbeltState* state, ZyanU8* start) {
+static ZyanU8 check_trampoline(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
     if (DEBUG) {
         printf("! Checking for trampoline at %p\n", start);
     }
 
     info->reg = ZYDIS_REGISTER_NONE;
 
-    ZydisDecodedInstruction* instruction = &state->instruction;
+    ZydisDecodedInstruction *instruction = &state->instruction;
 
-    ZyanU8* end = start + MAX_TRAMPOLINE_LENGTH;
+    ZyanU8 *end = start + MAX_TRAMPOLINE_LENGTH;
 
-    ZyanU8* call_target;
-    ZyanU8* pause_address;
+    ZyanU8 *call_target;
+    ZyanU8 *pause_address;
 
     // 1. call
     if (!decode_next(state, &start, end) ||
@@ -212,14 +211,14 @@ static ZyanU8 check_trampoline(TrampolineInformation* info, SeatbeltState* state
 }
 
 
-ZyanU8 handle_call(SeatbeltState* state, ZyanU8* start) {
-    ZydisDecodedInstruction* instruction = &state->instruction;
-    ZydisDecodedOperand* operand = &instruction->operands[0];
+ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
+    ZydisDecodedInstruction *instruction = &state->instruction;
+    ZydisDecodedOperand *operand = &instruction->operands[0];
     
     TrampolineInformation trampoline_info;
 
-    ZyanU8* call_address = state->current;
-    ZyanU8* target_address;
+    ZyanU8 *call_address = state->current;
+    ZyanU8 *target_address;
 
     if (operand->type != ZYDIS_OPERAND_TYPE_IMMEDIATE) {
         return 0;
@@ -257,8 +256,8 @@ ZyanU8 handle_call(SeatbeltState* state, ZyanU8* start) {
     return 1;
 }
 
-void remove_seatbelts(SeatbeltState* state, ZyanU8* start, ZyanU8* end) {
-    ZydisDecodedInstruction* instruction = &state->instruction;
+void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
+    ZydisDecodedInstruction *instruction = &state->instruction;
 
     if (DEBUG) {
         printf("! Scanning %p to %p\n", start, end);
@@ -273,31 +272,4 @@ void remove_seatbelts(SeatbeltState* state, ZyanU8* start, ZyanU8* end) {
             break;
         }
     }
-}
-
-void test_target() {
-    printf("test_target() called!\n");
-}
-
-void test() {
- 	void (*what)() = test_target;
-	what();
-}
-
-int main() {
-    SeatbeltState state;
-
-    init_seatbelt(&state, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
-
-    ZyanU8* start = (ZyanU8*) test;
-    ZyanU8* end = (ZyanU8*) main;
-
-    // Make memory writable
-    ZyanU8* page_start = (ZyanU8*) ((ZyanU64) start >> 12 << 12);
-    ZyanU8* page_end = (ZyanU8*) ((ZyanU64) end >> 12 << 12) + 0x00001000;
-    mprotect(page_start, page_end - page_start, PROT_READ | PROT_WRITE| PROT_EXEC);
-
-    remove_seatbelts(&state, start, end);
-
-    test();
 }
