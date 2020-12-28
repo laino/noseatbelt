@@ -19,9 +19,9 @@ add_library(noseatbelt SHARED src/noseatbelt.c)
 target_link_libraries(noseatbelt PRIVATE Zydis)
 
 if (UNIX)
-add_library(preload SHARED src/preload.c)
-target_link_libraries(preload Zydis dl)
-set_property(TARGET preload PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_library(noseatbelt-auto SHARED src/preload.c)
+target_link_libraries(noseatbelt-auto Zydis dl)
+set_property(TARGET noseatbelt-auto PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif (UNIX)
 
 add_subdirectory(examples/gcc)
