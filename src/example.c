@@ -6,10 +6,14 @@
 
 void test() {
     printf("Hello!\n");
+    return;
 }
+ 	
+void (*what)() = test;
 
 int main() {
- 	void (*what)() = test;
+    __asm("nop");
 	what();
+    __asm("nop");
     return 0;
 }

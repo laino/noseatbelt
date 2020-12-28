@@ -85,7 +85,9 @@ int main_hook(int argc, char **argv, char **envp)
 {
     remove_all_seatbelts();
 
-    return main_orig(argc, argv, envp);
+    int ret = main_orig(argc, argv, envp);
+
+    return ret;
 }
 
 /*

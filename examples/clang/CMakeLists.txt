@@ -7,8 +7,8 @@ set(CMAKE_C_COMPILER clang)
 add_executable(example_clang ../../src/example.c)
 add_executable(example_clang_clean ../../src/example.c)
 
-target_compile_options(example_clang PRIVATE -mspeculative-load-hardening)
-target_compile_options(example_clang_clean PRIVATE)
+target_compile_options(example_clang PRIVATE -g -O3 -mspeculative-load-hardening)
+target_compile_options(example_clang_clean PRIVATE -g -O3)
 
 if (UNIX)
 add_custom_command(TARGET example_clang POST_BUILD
