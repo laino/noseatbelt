@@ -1,15 +1,31 @@
 noseatbelt
 ==========
 
-Remove spectre mitigation from (running!) software.
+Remove mitigations from (running!) software.
 
 This library detects and removes spectre mitigations from a (running) program
 by disassembling it, pattern matching for any calls that use trampolines, and rewriting
 them to ordinary calls.
 
-Currently WIP and more of a POC.
+Currently WIP.
 
-Compiling:
+Support
+-------
+
+- [x] Linux 64bit
+- [ ] Linux 32bit
+- [ ] Windows 64bit
+- [ ] Windows 32bit
+
+Removes
+-------
+
+- [x] indirect calls via retpolines (Spectre v1 mitigation)
+- [ ] indirect returns via retpolines (Spectre v1 mitigation)
+- [ ] return address checks
+
+Build
+-----
 
 ```
 mkdir build
@@ -18,7 +34,8 @@ cmake ../
 make
 ```
 
-Usage:
+Usage
+-----
 
 ```
 # Remove trampolines from an example binary

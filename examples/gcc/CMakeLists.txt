@@ -4,20 +4,34 @@ project (noseatbelt-example-gcc)
 
 set(CMAKE_C_COMPILER gcc)
 
-add_executable(example_gcc ../../src/example.c)
 add_executable(example_gcc_clean ../../src/example.c)
+add_executable(example_gcc_thunk ../../src/example.c)
+add_executable(example_gcc_thunk_inline ../../src/example.c)
+add_executable(example_gcc_fcf ../../src/example.c)
 
-target_compile_options(example_gcc PRIVATE -g -O3 -mindirect-branch=thunk -mindirect-branch-register -mfunction-return=thunk)
-target_compile_options(example_gcc_clean PRIVATE -g -O3 )
+target_compile_options(example_gcc_clean PRIVATE -g -O0)
+target_compile_options(example_gcc_thunk PRIVATE -g -O0 -mindirect-branch=thunk -mfunction-return=thunk)
+target_compile_options(example_gcc_thunk_inline PRIVATE -g -O0 -mindirect-branch=thunk-inline -mfunction-return=thunk-inline)
+target_compile_options(example_gcc_fcf PRIVATE -g -O0 -fcf-protection=full)
 
 if (UNIX)
-add_custom_command(TARGET example_gcc POST_BUILD
-    COMMAND objdump -d example_gcc -M intel > objdump.txt
-    COMMENT "Running objdump (example_gcc)"
-)
-
 add_custom_command(TARGET example_gcc_clean POST_BUILD
     COMMAND objdump -d example_gcc_clean -M intel > objdump_clean.txt
+    COMMENT "Running objdump (example_gcc_clean)"
+)
+
+add_custom_command(TARGET example_gcc_thunk POST_BUILD
+    COMMAND objdump -d example_gcc_thunk -M intel > objdump_thunk.txt
+    COMMENT "Running objdump (example_gcc_clean)"
+)
+
+add_custom_command(TARGET example_gcc_thunk_inline POST_BUILD
+    COMMAND objdump -d example_gcc_thunk_inline -M intel > objdump_thunk_inline.txt
+    COMMENT "Running objdump (example_gcc_clean)"
+)
+
+add_custom_command(TARGET example_gcc_fcf POST_BUILD
+    COMMAND objdump -d example_gcc_fcf -M intel > objdump_fcf.txt
     COMMENT "Running objdump (example_gcc_clean)"
 )
 endif (UNIX)

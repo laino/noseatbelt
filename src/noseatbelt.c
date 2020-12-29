@@ -3,6 +3,17 @@
 #include "Zydis/Zydis.h"
 
 #define DEBUG 1
+
+#if defined(DEBUG) && DEBUG >= 2
+ #define DEBUG_PRINT(level, fmt, args...) \
+     if (DEBUG >= level) printf("DEBUG: %s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+#elif defined(DEBUG) && DEBUG >= 1
+ #define DEBUG_PRINT(level, fmt, args...) \
+     if (DEBUG >= level) printf( fmt, ##args)
+#else
+ #define DEBUG_PRINT(level, fmt, args...) /* Don't do anything in release builds */
+#endif
+
 #define MAX_TRAMPOLINE_LENGTH 100
 
 typedef struct SeatbeltState_ {
@@ -88,7 +99,7 @@ static ZyanU8 overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
 
     ZyanU8 reg_code = register_code(reg);
 
-    ZyanU8 ow[4];
+    ZyanU8 ow[3];
     ZyanU8 len;
 
     if (reg_code < 8) {
@@ -107,7 +118,7 @@ static ZyanU8 overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
         return 0;
     }
 
-    // LLVM likes to generate code that tests where 
+    // Compilers may generate code that tests where 
     // control returned *to* after a call. So
     // we put padding *before* the call.
     while (start + len < end) {
@@ -118,6 +129,7 @@ static ZyanU8 overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     ZyanU8 offset = 0;
 
     while (start + offset < end) {
+        assert(offset < len);
         *(start + offset) = ow[offset];
         offset++;
     }
@@ -135,9 +147,7 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end) {
             return status;
         }
 
-        if (DEBUG > 2) {
-            printf("%p %s\n", *start, ZydisMnemonicGetString(state->instruction.mnemonic));
-        }
+        DEBUG_PRINT(2, "%p %s\n", *start, ZydisMnemonicGetString(state->instruction.mnemonic));
 
         state->current = *start;
         *start += state->instruction.length;
@@ -153,109 +163,66 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }
 
-static ZyanU8 check_trampoline(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
-    if (DEBUG > 1) {
-        printf("! Checking for trampoline at %p\n", start);
+#define DECODE(state, start, end) decode_next(state, &start, end)
+#define FAIL(state, fmt, args...) \
+    DEBUG_PRINT(1, "%s: " fmt, ZydisMnemonicGetString(state->instruction.mnemonic), ##args)
+#define EXPECT(ins, state, start, end) \
+    if (!DECODE(state, start, end) || state->instruction.mnemonic != ZYDIS_MNEMONIC_ ## ins) {\
+        FAIL(state, "Expected " #ins "\n");\
+        return 0;\
     }
+
+static ZyanU8 check_retpoline(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
+    DEBUG_PRINT(1, "Checking for retpoline at %p\n", start);
 
     info->reg = ZYDIS_REGISTER_NONE;
 
-    ZydisDecodedInstruction *instruction = &state->instruction;
-
     ZyanU8 *end = start + MAX_TRAMPOLINE_LENGTH;
-
     ZyanU8 *call_target;
     ZyanU8 *pause_address;
-
-    // 1. call
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_CALL) {
-
-        if (DEBUG > 1) {
-            printf("> Expected CALL\n");
-        }
-
-        return 0;
-    }
-        
-    call_target = start + instruction->operands[0].imm.value.s;
- 
-    // 2. pause
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_PAUSE) {
-
-        if (DEBUG > 1) {
-            printf("> Expected PAUSE\n");
-        }
-
-        return 0;
-    }
     
+    ZydisDecodedInstruction *instruction = &state->instruction;
+
+    EXPECT(CALL, state, start, end);
+    call_target = start + instruction->operands[0].imm.value.s;
+    
+    EXPECT(PAUSE, state, start, end);
     pause_address = state->current;
     
-    // 3. lfence 
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_LFENCE) {
+    EXPECT(LFENCE, state, start, end);
+    EXPECT(JMP, state, start, end);
 
-        if (DEBUG > 1) {
-            printf("> Expected LFENCE\n");
-        }
-
-        return 0;
-    }
-
-    // 4. jmp
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_JMP ||
-        instruction->operands[0].type != ZYDIS_OPERAND_TYPE_IMMEDIATE ||
+    if (instruction->operands[0].type != ZYDIS_OPERAND_TYPE_IMMEDIATE ||
         instruction->operands[0].imm.value.s + start != pause_address) { // Should JMP to PAUSE
 
-        if (DEBUG > 1) {
-            printf("> Expected JMP to %p\n", pause_address);
-        }
+        DEBUG_PRINT(1, "Expected JMP to %p\n", pause_address);
 
         return 0;
     }
+    
+    EXPECT(MOV, state, start, end);
 
-    // 5. mov
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_MOV ||
-        instruction->operands[0].type != ZYDIS_OPERAND_TYPE_MEMORY ||
+    if (instruction->operands[0].type != ZYDIS_OPERAND_TYPE_MEMORY ||
         instruction->operands[1].type != ZYDIS_OPERAND_TYPE_REGISTER ||
         instruction->operands[0].mem.base != ZYDIS_REGISTER_RSP) {
 
-        if (DEBUG > 1) {
-            printf("> Expected MOV to rsp\n");
-        }
+        DEBUG_PRINT(1, "Expected MOV to rsp\n");
 
         return 0;
     }
     
     // Call target should point here
     if (call_target != state->current) {
-        if (DEBUG > 1) {
-            printf("> Expected CALL to point to %p\n", start);
-        }
+        DEBUG_PRINT(1, "Expected CALL to point to %p\n", start);
 
         return 0;
     }
 
     info->reg = instruction->operands[1].reg.value;
     
-    // 6. ret
-    if (!decode_next(state, &start, end) ||
-        instruction->mnemonic != ZYDIS_MNEMONIC_RET) {
+    EXPECT(RET, state, start, end);
 
-        if (DEBUG > 1) {
-            printf("> Expected RET\n");
-        }
-
-        return 0;
-    }
-                    
-    if (DEBUG) {
-        printf("! trampoline detected for register %s\n", ZydisRegisterGetString(info->reg));
-    }
+    DEBUG_PRINT(1, "Retpoline detected for register %s\n", ZydisRegisterGetString(info->reg));
 
     return 1;
 }
@@ -277,38 +244,13 @@ ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
     target_address = (operand->imm.is_relative ? start : 0) +
         (operand->imm.is_signed ? operand->imm.value.s : operand->imm.value.u);
 
-    if (DEBUG > 2) {
-        printf("> Found call to address %p\n", target_address);
-    }
-
-    if (!check_trampoline(&trampoline_info, state, target_address)) {
+    if (!check_retpoline(&trampoline_info, state, target_address)) {
         return 0;
-    }
-
-    if (DEBUG) {
-        printf("! Rewrote ");
-        ZyanU8 offset = 0;
-        while ((call_address + offset) < start) {
-            printf("%02X ", *(call_address + offset));
-            offset++;
-        }
-        printf("=> ");
     }
 
     if (overwrite_call(call_address, start, trampoline_info.reg)) {
         state->trampolines++;
     }
-
-    if (DEBUG) {
-        ZyanU8 offset = 0;
-        while ((call_address + offset) < start) {
-            printf("%X ", *(call_address + offset));
-            offset++;
-        }
-
-        printf("\n");
-    }
-
 
     return 1;
 }
@@ -316,11 +258,9 @@ ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
 void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
     ZydisDecodedInstruction *instruction = &state->instruction;
 
-    if (DEBUG) {
-        printf("! Scanning %p to %p\n", start, end);
-    }
+    DEBUG_PRINT(1, "--- Scanning %p to %p\n", start, end);
 
-    while (decode_next(state, &start, end)) {
+    while (DECODE(state, start, end)) {
         switch (instruction->mnemonic) {
         case ZYDIS_MNEMONIC_CALL: // far
             handle_call(state, start);
