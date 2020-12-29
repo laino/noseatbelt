@@ -72,7 +72,8 @@ static int remove_all_seatbelts() {
 
     fclose(fp);
 
-    printf("> Removed %lu trampolines.\n", state.trampolines);
+    printf("Removed %lu call trampoline calls.\n", state.call_trampolines);
+    printf("Removed %lu return trampoline jumps.\n", state.return_trampolines);
 
     return 0;
 }

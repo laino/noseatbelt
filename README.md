@@ -21,7 +21,7 @@ Removes
 -------
 
 - [x] indirect calls via retpolines (Spectre v1 mitigation)
-- [ ] indirect returns via retpolines (Spectre v1 mitigation)
+- [x] returns via return thunks (Spectre v1 mitigation)
 - [ ] return address checks
 
 Build
