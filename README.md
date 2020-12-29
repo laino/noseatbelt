@@ -20,8 +20,8 @@ Support
 Removes
 -------
 
-- [x] indirect calls via retpolines (Spectre v1 mitigation)
-- [x] returns via return thunks (Spectre v1 mitigation)
+- [x] indirect calls via retpolines (Spectre mitigation)
+- [x] returns via return thunks (Spectre mitigation)
 - [ ] return address checks
 
 Build
