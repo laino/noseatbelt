@@ -83,6 +83,48 @@ static ZyanU8 register_code(ZydisRegister reg) {
     }
 }
 
+static ZyanU8 overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+    // Rewrite to direct call.
+
+    ZyanU8 reg_code = register_code(reg);
+
+    ZyanU8 ow[4];
+    ZyanU8 len;
+
+    if (reg_code < 8) {
+        len = 2;
+        ow[0] = 0xFF;
+        ow[1] = MODRM(3, 2, reg_code);
+    } else {
+        len = 3;
+        ow[0] = 0x41;
+        ow[1] = 0xFF;
+        ow[2] = MODRM(3, 2, reg_code - 8);
+    }
+
+    if (start + len >= end) {
+        // Doesn't fit
+        return 0;
+    }
+
+    // LLVM likes to generate code that tests where 
+    // control returned *to* after a call. So
+    // we put padding *before* the call.
+    while (start + len < end) {
+        *(start) = 0x90;
+        start++;
+    }
+
+    ZyanU8 offset = 0;
+
+    while (start + offset < end) {
+        *(start + offset) = ow[offset];
+        offset++;
+    }
+
+    return 1;
+}
+
 static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end) {
     ZyanU8 status;
 
@@ -243,43 +285,23 @@ ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
         return 0;
     }
 
-    ZyanU8 offset = 0;
 
     if (DEBUG) {
         printf("! Rewrote ");
+        ZyanU8 offset = 0;
         while ((call_address + offset) < start) {
             printf("%02X ", *(call_address + offset));
             offset++;
         }
         printf("=> ");
-        offset = 0;
     }
 
-    ZyanU8 reg_code = register_code(trampoline_info.reg);
-
-    // Rewrite to 'direct' call
-    if (reg_code < 8) {
-        *(call_address + offset) = 0xFF;
-        offset++;
-        *(call_address + offset) = MODRM(3, 2, reg_code);
-        offset++;
-    } else {
-        *(call_address + offset) = 0x41;
-        offset++;
-        *(call_address + offset) = 0xFF;
-        offset++;
-        *(call_address + offset) = MODRM(3, 2, reg_code - 8);
-        offset++;
-    }
-
-    // Fill with NOOPs if we the old instruction was wider
-    while ((call_address + offset) < start) {
-        *(call_address + offset) = 0x90;
-        offset++;
+    if (overwrite_call(call_address, start, trampoline_info.reg)) {
+        state->trampolines++;
     }
 
     if (DEBUG) {
-        offset = 0;
+        ZyanU8 offset = 0;
         while ((call_address + offset) < start) {
             printf("%X ", *(call_address + offset));
             offset++;
@@ -288,7 +310,6 @@ ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
         printf("\n");
     }
 
-    state->trampolines++;
 
     return 1;
 }
