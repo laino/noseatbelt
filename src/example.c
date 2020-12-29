@@ -8,12 +8,12 @@ void test() {
     printf("Hello!\n");
     return;
 }
- 	
+     
 void (*what)() = test;
 
 int main() {
     __asm("nop");
-	what();
+    what();
     __asm("nop");
     return 0;
 }

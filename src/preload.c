@@ -23,7 +23,7 @@
 
 #include "noseatbelt.c"
 
-int remove_all_seatbelts() {
+static int remove_all_seatbelts() {
     SeatbeltState state;
 
     init_seatbelt(&state, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
@@ -36,16 +36,16 @@ int remove_all_seatbelts() {
 
     while (!feof(fp)) {
         char buf[PATH_MAX+100], perm[5], dev[6], mapname[PATH_MAX];
-	    unsigned long start, end, inode, foo;
+        unsigned long start, end, inode, foo;
         int prot = 0;
 
-	    if(fgets(buf, sizeof(buf), fp) == 0) {
-	        break;
+        if(fgets(buf, sizeof(buf), fp) == 0) {
+            break;
         }
 
-	    mapname[0] = '\0';
+        mapname[0] = '\0';
 
-	    sscanf(buf, "%lx-%lx %4s %lx %5s %ld %s", &start, &end, perm, &foo, dev, &inode, mapname);
+        sscanf(buf, "%lx-%lx %4s %lx %5s %ld %s", &start, &end, perm, &foo, dev, &inode, mapname);
 
         if (perm[0] == 'r') {
             prot |= PROT_READ;
@@ -81,7 +81,7 @@ int remove_all_seatbelts() {
 static int (*main_orig)(int, char**, char**);
 
 /* Our fake main() that gets called by __libc_start_main() */
-int main_hook(int argc, char **argv, char **envp)
+static int main_hook(int argc, char **argv, char **envp)
 {
     remove_all_seatbelts();
 

@@ -285,7 +285,6 @@ ZyanU8 handle_call(SeatbeltState *state, ZyanU8 *start) {
         return 0;
     }
 
-
     if (DEBUG) {
         printf("! Rewrote ");
         ZyanU8 offset = 0;
