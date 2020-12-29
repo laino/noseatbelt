@@ -22,6 +22,8 @@ Removes
 
 - [x] indirect calls via retpolines (Spectre mitigation)
 - [x] returns via return thunks (Spectre mitigation)
+- [ ] \_guard\_check\_icall (CFG)
+- [ ] \_guard\_dispatch\_icall (CFG)
 - [ ] return address checks
 
 Build
