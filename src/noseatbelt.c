@@ -125,6 +125,12 @@ enum DECODE_FLAGS {
     DECODE_FLAG_PEEK = 0x2,
 };
 
+#define PINFO(state, fmt, args...) \
+    DEBUG_PRINT(1, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##args)
+
+#define PVERBOSE(state, fmt, args...) \
+    DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##args)
+
 static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, ZyanU8 flags) {
     ZyanU8 status = 1;
 
@@ -139,9 +145,9 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
                 return status;
             }
 
-            DEBUG_PRINT(2, "%p %s\n", current, ZydisMnemonicGetString(state->instruction->mnemonic));
-
             state->current = current;
+
+            PVERBOSE(state, "decoded\n");
         }
 
         current += state->instruction->length;
@@ -160,12 +166,9 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
 #define PEEK_OP(state, start, end) decode_next(state, &start, end, DECODE_FLAG_PEEK & DECODE_FLAG_SKIP_NOOP)
 #define PEEK(state, start, end) decode_next(state, &start, end, DECODE_FLAG_PEEK)
 
-#define FAIL(state, fmt, args...) \
-    DEBUG_PRINT(1, "%s: " fmt, ZydisMnemonicGetString(state->instruction->mnemonic), ##args)
-
 #define EXPECT_OP(ins, state, start, end) \
     if (!DECODE_OP(state, start, end) || state->instruction->mnemonic != ZYDIS_MNEMONIC_ ## ins) {\
-        FAIL(state, "Expected " #ins "\n");\
+        PVERBOSE(state, "Expected " #ins "\n");\
         return 0;\
     }
 
@@ -189,7 +192,7 @@ static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end
     if (op0->type != ZYDIS_OPERAND_TYPE_IMMEDIATE ||
         op0->imm.value.s + *start != pause_address) { // Should JMP to PAUSE
 
-        FAIL(state, "Expected JMP to %p\n", pause_address);
+        PVERBOSE(state, "Expected JMP to %p\n", pause_address);
 
         return 0;
     }
@@ -207,13 +210,13 @@ static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end
         }
     }
 
-    FAIL(state, "Expected CALL to point before %p\n", *start);
+    PVERBOSE(state, "Expected CALL to point before %p\n", *start);
 
     return 0;
 }
 
 static ZyanU8 check_indirect_thunk(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
-    DEBUG_PRINT(1, "Checking for indirect thunk at %p\n", start);
+    PVERBOSE(state, "Checking for indirect thunk at %p\n", start);
 
     ZydisDecodedOperand *op0, *op1;
 
@@ -234,7 +237,7 @@ static ZyanU8 check_indirect_thunk(TrampolineInformation *info, SeatbeltState *s
         op0->mem.base != ZYDIS_REGISTER_RSP ||
         op1->type != ZYDIS_OPERAND_TYPE_REGISTER) {
 
-        FAIL(state, "Expected MOV to rsp\n");
+        PVERBOSE(state, "Expected MOV to rsp\n");
         return 0;
     }
 
@@ -242,13 +245,13 @@ static ZyanU8 check_indirect_thunk(TrampolineInformation *info, SeatbeltState *s
 
     EXPECT_OP(RET, state, start, end);
 
-    DEBUG_PRINT(1, "Indirect thunk found for register %s\n", ZydisRegisterGetString(info->reg));
+    PINFO(state, "Indirect thunk found for register %s\n", ZydisRegisterGetString(info->reg));
 
     return 1;
 }
 
 static ZyanU8 check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
-    DEBUG_PRINT(1, "Checking for return thunk at %p\n", start);
+    PVERBOSE(state, "Checking for return thunk at %p\n", start);
 
     ZydisDecodedOperand *op0, *op1;
 
@@ -272,12 +275,14 @@ static ZyanU8 check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
         op1->mem.disp.value != 8 ||
         op1->mem.base != ZYDIS_REGISTER_RSP) {
 
-        DEBUG_PRINT(1, "LEA should store rsp+0x8 to rsp.\n");
+        PVERBOSE(state, "LEA should store rsp+0x8 to rsp.\n");
+
+        return 0;
     }
 
     EXPECT_OP(RET, state, start, end);
 
-    DEBUG_PRINT(1, "Return thunk found\n");
+    PINFO(state, "Return thunk found\n");
 
     return 1;
 };
@@ -345,7 +350,7 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
 }
 
 void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
-    DEBUG_PRINT(1, "--- Scanning %p to %p\n", start, end);
+    DEBUG_PRINT(1, "Scanning %p to %p\n", start, end);
 
     while (DECODE_OP(state, start, end)) {
         switch (state->instruction->mnemonic) {
