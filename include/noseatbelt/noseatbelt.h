@@ -2,7 +2,15 @@
 
 #include <Zydis/Zydis.h>
 
-typedef struct SeatbeltState_ {
+#ifdef WIN32
+#define DllExport   __declspec( dllexport )
+#define DllImport   __declspec( dllimport )
+#else
+#define DllExport /* Only on WIN32 */
+#define DllImport /* Only on WIN32 */
+#endif
+
+DllExport typedef struct SeatbeltState_ {
     // Decoder
     ZydisDecoder decoder;
 
@@ -18,12 +26,11 @@ typedef struct SeatbeltState_ {
 
     // Number of indirect returns found and removed
     ZyanUSize return_trampolines;
-
 } SeatbeltState;
 
-typedef struct TrampolineInformation_ {
+DllExport typedef struct TrampolineInformation_ {
     ZydisRegister reg;
 } TrampolineInformation;
 
-void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width);
-void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end);
+DllExport void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width);
+DllExport void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end);

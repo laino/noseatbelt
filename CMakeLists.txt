@@ -1,14 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-
 project (noseatbelt)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -19,12 +13,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 option(ZYDIS_BUILD_TOOLS "" OFF)
 option(ZYDIS_BUILD_EXAMPLES "" OFF)
-option(ZYDIS_FEATURE_FORMATTER "" OFF)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    option(ZYDIS_FEATURE_FORMATTER "" OFF)
+else()
+    option(ZYDIS_FEATURE_FORMATTER "" ON)
+endif()
+
 option(ZYDIS_BUILD_SHARED_LIB "" ON)
 add_subdirectory(dependencies/zydis)
 
 include_directories(
-    include
+    ./include
     dependencies/zydis/include
     dependencies/zydis/dependencies/zycore/include
     ${CMAKE_BINARY_DIR}/dependencies/zydis

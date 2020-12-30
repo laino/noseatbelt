@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include <noseatbelt.h>
+#include <noseatbelt/noseatbelt.h>
+
 #include "debug.h"
 
 #define MODRM(mod, regOrOpcode, rm) mod << 6 | regOrOpcode << 3 | rm
@@ -147,7 +148,7 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
 
             state->current = current;
 
-            PVERBOSE(state, "decoded\n");
+            DEBUG_PRINT(3, "%p %s\n", current, ZydisMnemonicGetString(state->instruction->mnemonic));
         }
 
         current += state->instruction->length;

@@ -6,10 +6,9 @@
  *      https://github.com/cbbrowne/pmap/blob/master/pmap.c
  *
  * Hook main() using LD_PRELOAD.
- *
- * Compile using 'gcc hax.c -o hax.so -fPIC -shared -ldl'
- * Then run your program as 'LD_PRELOAD=$PWD/hax.so ./a.out'
  */
+#ifdef UNIX
+
 #define _GNU_SOURCE
 
 #include <stdlib.h>
@@ -20,7 +19,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <limits.h>
-#include <noseatbelt.h>
+#include <noseatbelt/noseatbelt.h>
 
 #include "debug.h"
 
@@ -114,3 +113,5 @@ int __libc_start_main(
     /* ... and call it with our custom main function */
     return orig(main_hook, argc, argv, init, fini, rtld_fini, stack_end);
 }
+
+#endif
