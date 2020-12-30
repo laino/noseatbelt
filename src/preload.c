@@ -21,7 +21,7 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "../include/noseatbelt.h"
+#include "noseatbelt.c"
 
 static int remove_all_seatbelts() {
     SeatbeltState state;
