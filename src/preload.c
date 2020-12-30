@@ -21,7 +21,7 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "noseatbelt.c"
+#include "../include/noseatbelt.h"
 
 static int remove_all_seatbelts() {
     SeatbeltState state;
@@ -50,11 +50,11 @@ static int remove_all_seatbelts() {
         if (perm[0] == 'r') {
             prot |= PROT_READ;
         }
-        
+
         if (perm[1] == 'w') {
             prot |= PROT_WRITE;
         }
-        
+
         if (perm[2] == 'x') {
             prot |= PROT_EXEC;
         }
@@ -62,11 +62,11 @@ static int remove_all_seatbelts() {
         if (!(prot & PROT_EXEC) || !(prot & PROT_READ)) {
             continue;
         }
-        
+
         mprotect((void*) start, end - start, PROT_WRITE | PROT_WRITE | PROT_EXEC);
 
         remove_seatbelts(&state, (void*) start, (void*) end);
-        
+
         mprotect((void*) start, end - start, prot);
     }
 

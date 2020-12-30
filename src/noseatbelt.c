@@ -1,43 +1,6 @@
 #include <stdio.h>
-#include <inttypes.h>
-#include "Zydis/Zydis.h"
-
-#define DEBUG 0
-
-#if defined(DEBUG) && DEBUG >= 2
- #define DEBUG_PRINT(level, fmt, args...) \
-     if (DEBUG >= level) printf("DEBUG: %s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
-#elif defined(DEBUG) && DEBUG >= 1
- #define DEBUG_PRINT(level, fmt, args...) \
-     if (DEBUG >= level) printf( fmt, ##args)
-#else
- #define DEBUG_PRINT(level, fmt, args...) /* Don't do anything in release builds */
-#endif
-
-#define MAX_TRAMPOLINE_LENGTH 100
-
-typedef struct SeatbeltState_ {
-    // Decoder
-    ZydisDecoder decoder;
-
-    // Pointer to current instruction
-    ZyanU8 *current;
-
-    // Current instruction
-    ZydisDecodedInstruction *instruction;
-    ZydisDecodedInstruction _instruction; // TODO: instruction cache?
-
-    // Number of indirect thunk calls found and removed
-    ZyanUSize call_trampolines;
-
-    // Number of indirect returns found and removed
-    ZyanUSize return_trampolines;
-
-} SeatbeltState;
-
-typedef struct TrampolineInformation_ {
-    ZydisRegister reg;
-} TrampolineInformation;
+#include <noseatbelt.h>
+#include "debug.h"
 
 #define MODRM(mod, regOrOpcode, rm) mod << 6 | regOrOpcode << 3 | rm
 static ZyanU8 register_code(ZydisRegister reg) {
@@ -189,15 +152,6 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
     }
 
     return status;
-}
-
-void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
-    state->current = 0;
-    state->call_trampolines = 0;
-    state->return_trampolines = 0;
-    state->instruction = &state->_instruction;
-
-    ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }
 
 #define DECODE_OP(state, start, end) decode_next(state, &start, end, DECODE_FLAG_SKIP_NOOP)
@@ -379,6 +333,15 @@ static void handle_jmp(SeatbeltState *state, ZyanU8 *start) {
     }
 
     return;
+}
+
+void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
+    state->current = 0;
+    state->call_trampolines = 0;
+    state->return_trampolines = 0;
+    state->instruction = &state->_instruction;
+
+    ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }
 
 void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
