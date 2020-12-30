@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <limits.h>
 
+#include "debug.h"
 #include "noseatbelt.c"
 
 static int remove_all_seatbelts() {
@@ -72,8 +73,8 @@ static int remove_all_seatbelts() {
 
     fclose(fp);
 
-    printf("Removed %lu call trampoline calls.\n", state.call_trampolines);
-    printf("Removed %lu return trampoline jumps.\n", state.return_trampolines);
+    DEBUG_PRINT(1, "Removed %lu call trampoline calls.\n", state.call_trampolines);
+    DEBUG_PRINT(1, "Removed %lu return trampoline jumps.\n", state.return_trampolines);
 
     return 0;
 }
