@@ -14,6 +14,11 @@ target_compile_options(example_gcc_thunk PRIVATE -g -O0 -mindirect-branch=thunk 
 target_compile_options(example_gcc_thunk_inline PRIVATE -g -O0 -mindirect-branch=thunk-inline -mfunction-return=thunk-inline)
 target_compile_options(example_gcc_fcf PRIVATE -g -O0 -fcf-protection=full)
 
+target_link_libraries(example_gcc_clean PRIVATE noseatbelt)
+target_link_libraries(example_gcc_thunk PRIVATE noseatbelt)
+target_link_libraries(example_gcc_thunk_inline PRIVATE noseatbelt)
+target_link_libraries(example_gcc_fcf PRIVATE noseatbelt)
+
 if (UNIX)
 add_custom_command(TARGET example_gcc_clean POST_BUILD
     COMMAND objdump -d ${CMAKE_BINARY_DIR}/example_gcc_clean -M intel > objdump_clean.txt

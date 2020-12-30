@@ -4,16 +4,13 @@
 
 #include <stdio.h>
 
-// No fancy LD_PRELOAD for windows
-#ifdef WIN32
-#include "remove-all-win32.c"
-#endif
+#include <noseatbelt/noseatbelt.h>
 
 void test() {
     printf("Hello!\n");
     return;
 }
-     
+
 void (*what)();
 
 void call_indirect() {
@@ -22,9 +19,7 @@ void call_indirect() {
 }
 
 int main() {
-#ifdef WIN32
     remove_all_seatbelts();
-#endif
     call_indirect();
     return 0;
 }

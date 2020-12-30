@@ -34,3 +34,4 @@ DllExport typedef struct TrampolineInformation_ {
 
 DllExport void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width);
 DllExport void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end);
+DllExport void remove_all_seatbelts();

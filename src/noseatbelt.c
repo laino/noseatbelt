@@ -127,10 +127,10 @@ enum DECODE_FLAGS {
 };
 
 #define PINFO(state, fmt, ...) \
-    DEBUG_PRINT(1, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), __VA_ARGS__)
+    DEBUG_PRINT(1, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
 
 #define PVERBOSE(state, fmt, ...) \
-    DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), __VA_ARGS__)
+    DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
 
 static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, ZyanU8 flags) {
     ZyanU8 status = 1;

@@ -2,14 +2,16 @@ cmake_minimum_required(VERSION 3.15)
 
 project (noseatbelt)
 
+if (UNIX)
+    add_compile_definitions(UNIX)
+elseif (WIN32)
+    add_compile_definitions(WIN32)
+endif ()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 option(ZYDIS_BUILD_TOOLS "" OFF)
 option(ZYDIS_BUILD_EXAMPLES "" OFF)
@@ -25,12 +27,12 @@ add_subdirectory(dependencies/zydis)
 
 include_directories(
     ./include
-    dependencies/zydis/include
-    dependencies/zydis/dependencies/zycore/include
+    ./dependencies/zydis/include
+    ./dependencies/zydis/dependencies/zycore/include
     ${CMAKE_BINARY_DIR}/dependencies/zydis
     ${CMAKE_BINARY_DIR}/dependencies/zydis/zycore)
 
-add_library(noseatbelt SHARED src/noseatbelt.c)
+add_library(noseatbelt SHARED src/noseatbelt.c src/remove-all-unix.c src/remove-all-win32.c)
 target_link_libraries(noseatbelt PRIVATE Zydis)
 
 if (UNIX)
