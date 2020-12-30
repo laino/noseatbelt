@@ -25,6 +25,7 @@ Removes
 - [ ] \_guard\_check\_icall (CFG)
 - [ ] \_guard\_dispatch\_icall (CFG)
 - [ ] return address checks
+- [ ] calls to functions that can be inlined (return x etc.)
 
 Build
 -----
@@ -32,7 +33,7 @@ Build
 ```
 mkdir build
 cd build
-cmake ../
+cmake -DCMAKE_BUILD_TYPE=Debug ../ #Release is default
 make
 ```
 

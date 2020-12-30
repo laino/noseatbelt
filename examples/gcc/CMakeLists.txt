@@ -16,22 +16,22 @@ target_compile_options(example_gcc_fcf PRIVATE -g -O0 -fcf-protection=full)
 
 if (UNIX)
 add_custom_command(TARGET example_gcc_clean POST_BUILD
-    COMMAND objdump -d example_gcc_clean -M intel > objdump_clean.txt
+    COMMAND objdump -d ${CMAKE_BINARY_DIR}/example_gcc_clean -M intel > objdump_clean.txt
     COMMENT "Running objdump (example_gcc_clean)"
 )
 
 add_custom_command(TARGET example_gcc_thunk POST_BUILD
-    COMMAND objdump -d example_gcc_thunk -M intel > objdump_thunk.txt
+    COMMAND objdump -d ${CMAKE_BINARY_DIR}/example_gcc_thunk -M intel > objdump_thunk.txt
     COMMENT "Running objdump (example_gcc_clean)"
 )
 
 add_custom_command(TARGET example_gcc_thunk_inline POST_BUILD
-    COMMAND objdump -d example_gcc_thunk_inline -M intel > objdump_thunk_inline.txt
+    COMMAND objdump -d ${CMAKE_BINARY_DIR}/example_gcc_thunk_inline -M intel > objdump_thunk_inline.txt
     COMMENT "Running objdump (example_gcc_clean)"
 )
 
 add_custom_command(TARGET example_gcc_fcf POST_BUILD
-    COMMAND objdump -d example_gcc_fcf -M intel > objdump_fcf.txt
+    COMMAND objdump -d ${CMAKE_BINARY_DIR}/example_gcc_fcf -M intel > objdump_fcf.txt
     COMMENT "Running objdump (example_gcc_clean)"
 )
 endif (UNIX)
