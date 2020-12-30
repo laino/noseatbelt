@@ -20,9 +20,9 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <limits.h>
+#include <noseatbelt.h>
 
 #include "debug.h"
-#include "noseatbelt.c"
 
 static int remove_all_seatbelts() {
     SeatbeltState state;
