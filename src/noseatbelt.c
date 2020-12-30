@@ -5,13 +5,13 @@
 #define DEBUG 0
 
 #if defined(DEBUG) && DEBUG >= 2
- #define DEBUG_PRINT(level, fmt, args...) \
-     if (DEBUG >= level) printf("DEBUG: %s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##args)
+ #define DEBUG_PRINT(level, fmt, ...) \
+     if (DEBUG >= level) printf("DEBUG: %s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #elif defined(DEBUG) && DEBUG >= 1
- #define DEBUG_PRINT(level, fmt, args...) \
-     if (DEBUG >= level) printf( fmt, ##args)
+ #define DEBUG_PRINT(level, fmt, ...) \
+     if (DEBUG >= level) printf( fmt, __VA_ARGS__)
 #else
- #define DEBUG_PRINT(level, fmt, args...) /* Don't do anything in release builds */
+ #define DEBUG_PRINT(level, fmt, ...) /* Don't do anything in release builds */
 #endif
 
 #define MAX_TRAMPOLINE_LENGTH 100
@@ -198,8 +198,8 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
 #define PEEK_OP(state, start, end) decode_next(state, &start, end, DECODE_FLAG_PEEK & DECODE_FLAG_SKIP_NOOP)
 #define PEEK(state, start, end) decode_next(state, &start, end, DECODE_FLAG_PEEK)
 
-#define FAIL(state, fmt, args...) \
-    DEBUG_PRINT(1, "%s: " fmt, ZydisMnemonicGetString(state->instruction.mnemonic), ##args)
+#define FAIL(state, fmt, ...) \
+    DEBUG_PRINT(1, "%s: " fmt, ZydisMnemonicGetString(state->instruction.mnemonic), __VA_ARGS__)
 
 #define EXPECT_OP(ins, state, start, end) \
     if (!DECODE_OP(state, start, end) || state->instruction.mnemonic != ZYDIS_MNEMONIC_ ## ins) {\

@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_C_COMPILER gcc)
-
 project (noseatbelt)
 
 option(ZYDIS_BUILD_TOOLS "" OFF)
@@ -24,5 +22,20 @@ target_link_libraries(noseatbelt-auto Zydis dl)
 set_property(TARGET noseatbelt-auto PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif (UNIX)
 
-add_subdirectory(examples/gcc)
-add_subdirectory(examples/clang)
+# On Windows we only use the current compiler
+
+if (UNIX)
+    add_subdirectory(examples/gcc)
+    add_subdirectory(examples/clang)
+else()
+    if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+    add_subdirectory(examples/clang)
+    endif()
+    if (CMAKE_C_COMPILER_ID MATCHES "GNU")
+    add_subdirectory(examples/gcc)
+    endif()
+    if (CMAKE_C_COMPILER_ID MATCHES "MSVC")
+    add_subdirectory(examples/msvc)
+    endif()
+endif ()
+

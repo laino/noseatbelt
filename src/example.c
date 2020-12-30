@@ -12,8 +12,6 @@ void test() {
 void (*what)() = test;
 
 int main() {
-    __asm("nop");
     what();
-    __asm("nop");
     return 0;
 }
