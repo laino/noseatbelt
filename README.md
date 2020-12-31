@@ -20,10 +20,10 @@ Removes
 
 - [x] indirect calls via retpolines (Spectre mitigation)
 - [x] returns via return thunks (Spectre mitigation)
-- [ ] Control Flow Guards
+- [x] Control Flow Guards
 - [ ] Return Flow Guards
-- [ ] calls to functions that can be inlined (return x etc.)
-- [ ] unecessary call indirection via jumps (that can be resolved statically)
+- [x] jumps that can be inlined
+- [ ] calls to functions that can be inlined
 
 Build
 -----
