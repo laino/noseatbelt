@@ -22,6 +22,7 @@ void remove_all_seatbelts() {
     DEBUG_PRINT(1, "\n%"PRIu64" bytes processed:\n", state.bytes_processed);
     DEBUG_PRINT(1, " %"PRIu64" call trampolines\n", state.call_trampolines);
     DEBUG_PRINT(1, " %"PRIu64" return trampolines\n", state.return_trampolines);
+    DEBUG_PRINT(1, " %"PRIu64" jumps inlined\n", state.jumps_inlined);
 
     DEBUG_PRINT(1, "\n--NoSeatbelt-----------------\n\n");
 }

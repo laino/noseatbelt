@@ -2,8 +2,6 @@
 
 #include <Zydis/Zydis.h>
 
-#define MAX_TRAMPOLINE_LENGTH 100
-
 #ifdef WIN32
 #define DllExport   __declspec( dllexport )
 #define DllImport   __declspec( dllimport )
@@ -30,11 +28,15 @@ DllExport typedef struct SeatbeltState_ {
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
 
-    // Number of indirect thunk calls found and removed
+    // Number of call trampoline calls rewritten
     ZyanUSize call_trampolines;
 
-    // Number of indirect returns found and removed
+    // Number of return trampolines rewritten
     ZyanUSize return_trampolines;
+
+    // Number of jumps inlined, note that this includes
+    // jumps to return trampolines
+    ZyanUSize jumps_inlined;
 
     // Number of bytes processed
     ZyanUSize bytes_processed;
