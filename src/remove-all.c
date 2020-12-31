@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <limits.h>
-#include <sys/mman.h>
 #include <inttypes.h>
 
 #include <noseatbelt/noseatbelt.h>

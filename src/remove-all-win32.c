@@ -28,7 +28,7 @@ static void _remove_all_seatbelts(SeatbeltState *state) {
 
             VirtualProtect(pTextStart, pTextEnd - pTextStart, PAGE_EXECUTE_WRITECOPY, &oldProtect);
 
-            remove_seatbelts(&state, pTextStart, pTextEnd);
+            remove_seatbelts(state, pTextStart, pTextEnd);
 
             VirtualProtect(pTextStart, pTextEnd - pTextStart, oldProtect, NULL);
         }

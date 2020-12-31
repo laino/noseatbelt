@@ -484,6 +484,7 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
     state->call_trampolines = 0;
     state->return_trampolines = 0;
     state->bytes_processed = 0;
+    state->jumps_inlined = 0;
     state->instruction = &state->_instruction;
 
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
