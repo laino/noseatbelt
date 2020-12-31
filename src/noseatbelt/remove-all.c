@@ -2,13 +2,12 @@
 #include <inttypes.h>
 
 #include <noseatbelt/noseatbelt.h>
+#include <noseatbelt/debug.h>
 
-#include "debug.h"
-
-#include "remove-all-unix.c"
 #include "remove-all-win32.c"
+#include "remove-all-unix.c"
 
-void remove_all_seatbelts() {
+void remove_all_seatbelts_auto() {
     DEBUG_PRINT(1, "--NoSeatbelt-----------------\n\n");
 
     SeatbeltState state;
@@ -21,6 +20,10 @@ void remove_all_seatbelts() {
     DEBUG_PRINT(1, " %"PRIu64" call trampolines\n", state.call_trampolines);
     DEBUG_PRINT(1, " %"PRIu64" return trampolines\n", state.return_trampolines);
     DEBUG_PRINT(1, " %"PRIu64" jumps inlined\n", state.jumps_inlined);
+#ifdef WIN32
+    DEBUG_PRINT(1, " %"PRIu64" _guard_dispatch_icall calls\n", state.dispatch_icall);
+    DEBUG_PRINT(1, " %"PRIu64" _guard_check_icall calls\n", state.check_icall);
+#endif
 
     DEBUG_PRINT(1, "\n--NoSeatbelt-----------------\n\n");
 }

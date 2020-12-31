@@ -1,20 +1,24 @@
-/*
- * Finds all .text sections and fixes them up.
- */
-
 #ifdef WIN32
 
 #include <windows.h>
 #include <libloaderapi.h>
 #include <dbghelp.h>
+
 #include <noseatbelt/noseatbelt.h>
+#include <noseatbelt/debug.h>
 
-#include "debug.h"
-
-static void _remove_all_seatbelts(SeatbeltState *state) {
-    HMODULE pImage = GetModuleHandleA(NULL);
+void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
 
+    if (pHeader->OptionalHeader.NumberOfRvaAndSizes >= 10) {
+        IMAGE_LOAD_CONFIG_DIRECTORY *load_config = (IMAGE_LOAD_CONFIG_DIRECTORY*) 
+            (pHeader->OptionalHeader.DataDirectory[10].VirtualAddress + pHeader->OptionalHeader.ImageBase);
+
+        state->nt_config.cf_check_function =  *((ZyanU8**) load_config->GuardCFCheckFunctionPointer);
+        state->nt_config.cf_dispatch_function = *((ZyanU8**) load_config->GuardCFDispatchFunctionPointer);
+        printf("dispatch %p\n", state->nt_config.cf_check_function);
+    }
+    
     IMAGE_SECTION_HEADER* pSectionHeaders = (IMAGE_SECTION_HEADER*) (pHeader + 1);
 
     ZyanU8* base_address = (ZyanU8*) pImage;
@@ -35,6 +39,9 @@ static void _remove_all_seatbelts(SeatbeltState *state) {
 
         ++pSectionHeaders;
     }
+
+    state->nt_config.cf_check_function = NULL;
+    state->nt_config.cf_dispatch_function = NULL;
 }
 
 #endif

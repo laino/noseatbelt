@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 #include <Zydis/Zydis.h>
 
 #ifdef WIN32
@@ -28,11 +32,24 @@ DllExport typedef struct SeatbeltState_ {
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
 
+#ifdef WIN32
+    struct nt_config_ {
+        ZyanU8 *cf_check_function;
+        ZyanU8 *cf_dispatch_function;
+    } nt_config;
+#endif
+
     // Number of call trampoline calls rewritten
     ZyanUSize call_trampolines;
 
     // Number of return trampolines rewritten
     ZyanUSize return_trampolines;
+
+    // Number of _guard_check_icall calls removed
+    ZyanUSize check_icall;
+
+    // Number of _guard_dispatch_icall calls rewritten
+    ZyanUSize dispatch_icall;
 
     // Number of jumps inlined, note that this includes
     // jumps to return trampolines
@@ -47,5 +64,11 @@ DllExport typedef struct TrampolineInformation_ {
 } TrampolineInformation;
 
 DllExport void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width);
+
 DllExport void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end);
-DllExport void remove_all_seatbelts();
+
+DllExport void remove_all_seatbelts_auto();
+
+#ifdef WIN32
+DllExport void remove_module_seatbelts(SeatbeltState *state, HMODULE module);
+#endif

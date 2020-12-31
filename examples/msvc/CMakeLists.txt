@@ -4,8 +4,8 @@ project (noseatbelt-example-msvc)
 
 set(CMAKE_C_COMPILER msvc)
 
-add_executable(example_msvc_spectre ../../src/example.c)
-add_executable(example_msvc_clean ../../src/example.c)
+add_executable(example_msvc_spectre ${example_SRC})
+add_executable(example_msvc_clean ${example_SRC})
 
 target_compile_options(example_msvc_spectre PRIVATE /Qspectre /guard:cf)
 target_compile_options(example_msvc_clean PRIVATE)

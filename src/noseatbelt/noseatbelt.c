@@ -2,8 +2,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <noseatbelt/noseatbelt.h>
-
-#include "debug.h"
+#include <noseatbelt/debug.h>
 
 #define MAX_THUNK_HEAD_LENGTH 64
 #define MAX_THUNK_BODY_LENGTH 64
@@ -116,6 +115,10 @@ static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* ri
     return 0;
 }
 
+static void write_NOP(ZyanU8* start, ZyanU8* end) {
+    memset(start, 0x90, end - start);
+}
+
 /*
  * Writes a RET instruction.
  */
@@ -123,7 +126,7 @@ static ZyanBool write_RET(ZyanU8* start, ZyanU8* end) {
     *start = 0xc3;
 
     // Fill rest with NOOP
-    memset(start + 1, 0x90, end - start);
+    memset(start + 1, 0x90, end - start - 1);
 
     return 1;
 }
@@ -382,9 +385,33 @@ static ZyanBool handle_call(SeatbeltState *state) {
         return REWRITE_FLAG_NONE;
     }
 
+#ifdef WIN32
+    if (target_address == state->nt_config.cf_dispatch_function) {
+        if (write_CALL(call_address, call_next, ZYDIS_REGISTER_RAX)) {
+            INVALIDATE(state, call_address);
+
+            state->dispatch_icall++;
+
+            return REWRITE_FLAG_REWRITE_CALL;
+        }
+
+        return REWRITE_FLAG_NONE;
+    }
+
+    if (target_address == state->nt_config.cf_check_function) {
+        write_NOP(call_address, call_next);
+
+        INVALIDATE(state, call_address);
+
+        state->check_icall++;
+
+        return REWRITE_FLAG_REWRITE_CALL;
+    }
+#endif
+
     if (DECODE_OP(state, target_address, target_address + MAX_INSTRUCTION_LENGTH) &&
         state->instruction->mnemonic == ZYDIS_MNEMONIC_CALL) {
-
+        
         op0 = &state->instruction->operands[0];
 
         if (!memory_location_from_operand(op0, state->next, &target_address)) {
@@ -481,11 +508,20 @@ static REWRITE_FLAGS handle_instruction(SeatbeltState *state, ZyanU8 jump_depth)
 
 void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
     state->current = ((ZyanU8*) 0) - 1;
+
     state->call_trampolines = 0;
     state->return_trampolines = 0;
-    state->bytes_processed = 0;
+    state->dispatch_icall = 0;
+    state->check_icall = 0;
     state->jumps_inlined = 0;
+    state->bytes_processed = 0;
+
     state->instruction = &state->_instruction;
+
+#ifdef WIN32
+    state->nt_config.cf_check_function = NULL;
+    state->nt_config.cf_dispatch_function = NULL;
+#endif
 
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }

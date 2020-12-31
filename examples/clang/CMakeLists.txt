@@ -4,8 +4,8 @@ project (noseatbelt-example-clang)
 
 set(CMAKE_C_COMPILER clang)
 
-add_executable(example_clang_clean ../../src/example.c)
-add_executable(example_clang_hardened ../../src/example.c)
+add_executable(example_clang_clean ../../src/example)
+add_executable(example_clang_hardened ../../src/example)
 
 target_compile_options(example_clang_clean PRIVATE)
 target_compile_options(example_clang_hardened PRIVATE -mspeculative-load-hardening)

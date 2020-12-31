@@ -19,7 +19,7 @@ void call_indirect() {
 }
 
 int main() {
-    remove_all_seatbelts();
+    remove_all_seatbelts_auto();
     call_indirect();
     return 0;
 }
