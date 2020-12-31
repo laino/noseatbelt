@@ -126,8 +126,6 @@ static ZyanBool write_RET(ZyanU8* start, ZyanU8* end) {
  * Writes a CALL instruction to a memory location stored in reg.
  */
 static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
-    // Rewrite to direct call.
-
     ZyanU8 reg_code = register_code(reg);
 
     ZyanU8 ow[3];
