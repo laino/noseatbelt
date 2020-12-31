@@ -64,12 +64,18 @@ static ZyanU8 register_code(ZydisRegister reg) {
     }
 }
 
+/*
+ * Calculates the address of an immediate operand.
+ */
 static ZyanBool memory_location_from_immediate_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8** loc) {
     *loc = (op->imm.is_relative ? rip : 0) + (op->imm.is_signed ? op->imm.value.s : op->imm.value.u);
 
     return 1;    
 }
 
+/*
+ * Attempts to statically calculate the address of a memory operand if possible.
+ */
 static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->mem.base == ZYDIS_REGISTER_RIP &&
         op->mem.disp.has_displacement &&
@@ -80,7 +86,6 @@ static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, Zya
         op->mem.segment == ZYDIS_REGISTER_SS ||
         op->mem.segment == ZYDIS_REGISTER_DS)) {
 
-        // We can statically calculate the target address
         *loc = *(ZyanU8**)(rip + op->mem.disp.value);
         return 1;
     }
@@ -88,6 +93,9 @@ static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, Zya
     return 0;
 }
 
+/*
+ * Attempts to statically calculate the address of an operand if possible.
+ */
 static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
         return memory_location_from_immediate_operand(op, rip, loc);
@@ -98,6 +106,9 @@ static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* ri
     return 0;
 }
 
+/*
+ * Overwrites a JMP instruction with RET.
+ */
 static ZyanBool overwrite_jmp(ZyanU8* start, ZyanU8* end) {
     *(start) = 0xc3;
     start++;
@@ -111,6 +122,9 @@ static ZyanBool overwrite_jmp(ZyanU8* start, ZyanU8* end) {
     return 1;
 }
 
+/*
+ * Overwrites a CALL instruction with a CALL to a memory location stored in reg.
+ */
 static ZyanBool overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     // Rewrite to direct call.
 
@@ -135,10 +149,11 @@ static ZyanBool overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
         return 0;
     }
 
-    // Compilers may generate code that tests where
-    // control returned *to* after a call. So
-    // we put padding *before* the call.
-    // TODO use variable sized NOOPs
+    /* 
+     * Compilers may generate code that tests where control
+     * returned *to* after call. That's why we put NOOPs
+     * at the beginning.
+     */
     while (start + len < end) {
         *(start) = 0x90;
         start++;
@@ -307,7 +322,7 @@ static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     op0 = &state->instruction->operands[0];
     op1 = &state->instruction->operands[1];
 
-    // TODO: displacement will be different on 32bits
+    // TODO: displacement will be different on 32bit
     if (op0->type != ZYDIS_OPERAND_TYPE_REGISTER ||
         op0->reg.value != ZYDIS_REGISTER_RSP ||
         op1->type != ZYDIS_OPERAND_TYPE_MEMORY ||
@@ -343,11 +358,9 @@ static void handle_call(SeatbeltState *state, ZyanU8 *start) {
     // TODO Put a limit on following jumps, there could be infinite loops.
     while (PEEK(state, target_address, target_address + MAX_TRAMPOLINE_LENGTH) &&
         state->instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
-        // the call is being redirected somewhere
-        printf("redir\n");
+        // the call is being redirected somewhere, follow...
 
         if (!memory_location_from_operand(&state->instruction->operands[0], state->next, &target_address)) {
-            printf("Couldn't follow.\n");
             break;
         }
     }
