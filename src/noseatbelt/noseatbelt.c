@@ -169,9 +169,9 @@ static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     ZyanU8 len;
 
     ZyanI64 offset;
-    
+
     offset = target - start - 2;
-    if (offset > -0xFF && offset < 0xFF) {
+    if (offset > -0x8F && offset < 0x8F) {
         // Fits in 8 bit offset
         len = 2;
         ow[0] = 0xEB;
@@ -181,7 +181,7 @@ static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     }
 
     offset = target - start - 5;
-    if (offset > -0xFFFFFFFF && offset < 0xFFFFFFFF) {
+    if (offset > -0x8FFFFFFF && offset < 0x8FFFFFFF) {
         // Fits in 32 bit offset
         // 32COMPAT: On 32 bit this is rel16
         len = 5;
@@ -568,6 +568,8 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
         state->jumps_inlined++;
 
         INVALIDATE(state, jmp_address);
+
+        printf("kek\n");
 
         return REWRITE_FLAG_REWRITE_INLINE_JUMP;
     }

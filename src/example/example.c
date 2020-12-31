@@ -21,7 +21,7 @@ void call_indirect() {
 void inlineable_jumps() {
     goto bottom;
 middle:
-    printf("You!");
+    printf("You!\n");
     return;
 bottom:
     goto middle;
