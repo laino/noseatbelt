@@ -23,7 +23,7 @@ void remove_all_seatbelts() {
 
     ZyanU8* base_address = (ZyanU8*) pImage;
 
-    for (auto count = 0u; count < pHeader->FileHeader.NumberOfSections; ++count)
+    for (ZyanU8 count = 0; count < pHeader->FileHeader.NumberOfSections; ++count)
     {
         if (memcmp(pSectionHeaders->Name, ".text", 5) == 0)
         {
@@ -34,8 +34,8 @@ void remove_all_seatbelts() {
 
             VirtualProtect(pTextStart, pTextEnd - pTextStart, PAGE_EXECUTE_WRITECOPY, &oldProtect);
 
-            remove_seatbelts(&state, pTextStart, pTextEnd);   
-            
+            remove_seatbelts(&state, pTextStart, pTextEnd);
+
             VirtualProtect(pTextStart, pTextEnd - pTextStart, oldProtect, NULL);
         }
 
