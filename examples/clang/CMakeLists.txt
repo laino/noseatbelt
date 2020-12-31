@@ -7,8 +7,8 @@ set(CMAKE_C_COMPILER clang)
 add_executable(example_clang_clean ../../src/example.c)
 add_executable(example_clang_hardened ../../src/example.c)
 
-target_compile_options(example_clang_clean PRIVATE -g -O0)
-target_compile_options(example_clang_hardened PRIVATE -g -O0 -mspeculative-load-hardening)
+target_compile_options(example_clang_clean PRIVATE)
+target_compile_options(example_clang_hardened PRIVATE -mspeculative-load-hardening)
 
 target_link_libraries(example_clang_clean PRIVATE noseatbelt)
 target_link_libraries(example_clang_hardened PRIVATE noseatbelt)

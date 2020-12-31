@@ -40,9 +40,6 @@ Usage
 -----
 
 ```
-# Remove trampolines from an example binary
-LD_PRELOAD=$(pwd)/libnoseatbelt-auto.so examples/gcc/example_gcc
-# or
-LD_PRELOAD=$(pwd)/libnoseatbelt-auto.so examples/gcc/firefox
-# ...
+# Measure how long it takes to patch the firefox binary
+time LD_PRELOAD=./libnoseatbelt-auto.so firefox --version
 ```

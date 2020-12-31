@@ -70,7 +70,7 @@ static ZyanU8 register_code(ZydisRegister reg) {
 static ZyanBool memory_location_from_immediate_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8** loc) {
     *loc = (op->imm.is_relative ? rip : 0) + (op->imm.is_signed ? op->imm.value.s : op->imm.value.u);
 
-    return 1;    
+    return 1;
 }
 
 /*
@@ -89,7 +89,7 @@ static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, Zya
         *loc = *(ZyanU8**)(rip + op->mem.disp.value);
         return 1;
     }
-        
+
     return 0;
 }
 
@@ -107,9 +107,9 @@ static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* ri
 }
 
 /*
- * Overwrites a JMP instruction with RET.
+ * Writes a RET instruction.
  */
-static ZyanBool overwrite_jmp(ZyanU8* start, ZyanU8* end) {
+static ZyanBool write_RET(ZyanU8* start, ZyanU8* end) {
     *(start) = 0xc3;
     start++;
 
@@ -123,9 +123,9 @@ static ZyanBool overwrite_jmp(ZyanU8* start, ZyanU8* end) {
 }
 
 /*
- * Overwrites a CALL instruction with a CALL to a memory location stored in reg.
+ * Writes a CALL instruction to a memory location stored in reg.
  */
-static ZyanBool overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     // Rewrite to direct call.
 
     ZyanU8 reg_code = register_code(reg);
@@ -149,7 +149,7 @@ static ZyanBool overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
         return 0;
     }
 
-    /* 
+    /*
      * Compilers may generate code that tests where control
      * returned *to* after call. That's why we put NOOPs
      * at the beginning.
@@ -232,7 +232,7 @@ static ZyanBool check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *e
     EXPECT_OP(CALL, state, *start, end);
 
     if (!memory_location_from_operand(&state->instruction->operands[0], *start, &call_target)) {
-        PVERBOSE(state, "Couldn't decode CALL target\n", pause_address);
+        PVERBOSE(state, "Couldn't decode CALL target\n");
         return 0;
     }
 
@@ -243,7 +243,7 @@ static ZyanBool check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *e
     EXPECT_OP(JMP, state, *start, end);
 
     if (!memory_location_from_operand(&state->instruction->operands[0], *start, &jmp_target)) {
-        PVERBOSE(state, "Couldn't decode JMP target\n", pause_address);
+        PVERBOSE(state, "Couldn't decode JMP target\n");
         return 0;
     }
 
@@ -344,16 +344,23 @@ static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
 };
 
 static void handle_call(SeatbeltState *state, ZyanU8 *start) {
-    ZydisDecodedOperand *op0 = &state->instruction->operands[0];
-
-    TrampolineInformation trampoline_info;
-
-    ZyanU8 *call_address = state->current;
     ZyanU8 *target_address;
+    ZyanU8 *call_address = state->current;
+    ZyanU8 *call_next = state->next;
 
     if (!memory_location_from_operand(&state->instruction->operands[0], start, &target_address)) {
         return;
     }
+
+    // Could be an inline return thunk
+    if (check_return_thunk(state, state->current)) {
+        if (write_RET(call_address, call_next)) {
+            state->return_trampolines++;
+        }
+        return;
+    }
+
+    TrampolineInformation trampoline_info;
 
     // TODO Put a limit on following jumps, there could be infinite loops.
     while (PEEK(state, target_address, target_address + MAX_TRAMPOLINE_LENGTH) &&
@@ -369,7 +376,7 @@ static void handle_call(SeatbeltState *state, ZyanU8 *start) {
         return;
     }
 
-    if (overwrite_call(call_address, start, trampoline_info.reg)) {
+    if (write_CALL(call_address, call_next, trampoline_info.reg)) {
         state->call_trampolines++;
     }
 
@@ -390,7 +397,7 @@ static void handle_jmp(SeatbeltState *state, ZyanU8 *start) {
         return;
     }
 
-    if (overwrite_jmp(jmp_address, start)) {
+    if (write_RET(jmp_address, start)) {
         state->return_trampolines++;
     }
 
