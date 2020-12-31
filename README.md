@@ -23,7 +23,7 @@ Removes
 - [ ] \_guard\_check\_icall (CFG)
 - [ ] \_guard\_dispatch\_icall (CFG)
 - [ ] return address checks
-- [ ] calls to functions that can be inlined (return x etc.)'
+- [ ] calls to functions that can be inlined (return x etc.)
 - [ ] unecessary call indirection via jumps (that can be resolved statically)
 
 Build
