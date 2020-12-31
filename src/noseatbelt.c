@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <inttypes.h>
 #include <noseatbelt/noseatbelt.h>
 
 #include "debug.h"
@@ -63,7 +64,41 @@ static ZyanU8 register_code(ZydisRegister reg) {
     }
 }
 
-static ZyanU8 overwrite_jmp(ZyanU8* start, ZyanU8* end) {
+static ZyanBool memory_location_from_immediate_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8** loc) {
+    *loc = (op->imm.is_relative ? rip : 0) + (op->imm.is_signed ? op->imm.value.s : op->imm.value.u);
+
+    return 1;    
+}
+
+static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+    if (op->mem.base == ZYDIS_REGISTER_RIP &&
+        op->mem.disp.has_displacement &&
+        op->mem.index == ZYDIS_REGISTER_NONE &&
+        op->mem.scale == ZYDIS_REGISTER_NONE && (
+        op->mem.segment == ZYDIS_REGISTER_ES ||
+        op->mem.segment == ZYDIS_REGISTER_CS ||
+        op->mem.segment == ZYDIS_REGISTER_SS ||
+        op->mem.segment == ZYDIS_REGISTER_DS)) {
+
+        // We can statically calculate the target address
+        *loc = *(ZyanU8**)(rip + op->mem.disp.value);
+        return 1;
+    }
+        
+    return 0;
+}
+
+static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+    if (op->type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+        return memory_location_from_immediate_operand(op, rip, loc);
+    } else if (op->type == ZYDIS_OPERAND_TYPE_MEMORY) {
+        return memory_location_from_memory_operand(op, rip, loc);
+    }
+
+    return 0;
+}
+
+static ZyanBool overwrite_jmp(ZyanU8* start, ZyanU8* end) {
     *(start) = 0xc3;
     start++;
 
@@ -76,7 +111,7 @@ static ZyanU8 overwrite_jmp(ZyanU8* start, ZyanU8* end) {
     return 1;
 }
 
-static ZyanU8 overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+static ZyanBool overwrite_call(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     // Rewrite to direct call.
 
     ZyanU8 reg_code = register_code(reg);
@@ -132,7 +167,7 @@ enum DECODE_FLAGS {
 #define PVERBOSE(state, fmt, ...) \
     DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
 
-static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, ZyanU8 flags) {
+static ZyanBool decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, ZyanU8 flags) {
     ZyanU8 status = 1;
 
     ZyanU8* current = *start;
@@ -147,11 +182,12 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
             }
 
             state->current = current;
+            state->next = current + state->instruction->length;
 
             DEBUG_PRINT(3, "%p %s\n", current, ZydisMnemonicGetString(state->instruction->mnemonic));
         }
 
-        current += state->instruction->length;
+        current = state->next;
     } while (flags & DECODE_FLAG_SKIP_NOOP && state->instruction->mnemonic == ZYDIS_MNEMONIC_NOP);
 
     if ((flags & DECODE_FLAG_PEEK) == 0) {
@@ -173,14 +209,17 @@ static ZyanU8 decode_next(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end, Zya
         return 0;\
     }
 
-static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end) {
+static ZyanBool check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end) {
     ZyanU8 *pause_address;
     ZyanU8 *call_target;
-
-    ZydisDecodedOperand *op0;
+    ZyanU8 *jmp_target;
 
     EXPECT_OP(CALL, state, *start, end);
-    call_target = *start + state->instruction->operands[0].imm.value.s;
+
+    if (!memory_location_from_operand(&state->instruction->operands[0], *start, &call_target)) {
+        PVERBOSE(state, "Couldn't decode CALL target\n", pause_address);
+        return 0;
+    }
 
     EXPECT_OP(PAUSE, state, *start, end);
     pause_address = state->current;
@@ -188,11 +227,12 @@ static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end
     EXPECT_OP(LFENCE, state, *start, end);
     EXPECT_OP(JMP, state, *start, end);
 
-    op0 = &state->instruction->operands[0];
+    if (!memory_location_from_operand(&state->instruction->operands[0], *start, &jmp_target)) {
+        PVERBOSE(state, "Couldn't decode JMP target\n", pause_address);
+        return 0;
+    }
 
-    if (op0->type != ZYDIS_OPERAND_TYPE_IMMEDIATE ||
-        op0->imm.value.s + *start != pause_address) { // Should JMP to PAUSE
-
+    if (jmp_target != pause_address) { // Should JMP to PAUSE
         PVERBOSE(state, "Expected JMP to %p\n", pause_address);
 
         return 0;
@@ -205,7 +245,7 @@ static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end
         }
 
         if (state->instruction->mnemonic == ZYDIS_MNEMONIC_NOP) {
-            *start += state->instruction->length;
+            *start = state->next;
         } else {
             break;
         }
@@ -216,7 +256,7 @@ static ZyanU8 check_thunk_head(SeatbeltState *state, ZyanU8 **start, ZyanU8 *end
     return 0;
 }
 
-static ZyanU8 check_indirect_thunk(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
+static ZyanBool check_indirect_thunk(TrampolineInformation *info, SeatbeltState *state, ZyanU8 *start) {
     PVERBOSE(state, "Checking for indirect thunk at %p\n", start);
 
     ZydisDecodedOperand *op0, *op1;
@@ -251,7 +291,7 @@ static ZyanU8 check_indirect_thunk(TrampolineInformation *info, SeatbeltState *s
     return 1;
 }
 
-static ZyanU8 check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
+static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     PVERBOSE(state, "Checking for return thunk at %p\n", start);
 
     ZydisDecodedOperand *op0, *op1;
@@ -288,11 +328,6 @@ static ZyanU8 check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     return 1;
 };
 
-static ZyanU8* memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* rip) {
-    return (op->imm.is_relative ? rip : 0) +
-        (op->imm.is_signed ? op->imm.value.s : op->imm.value.u);
-}
-
 static void handle_call(SeatbeltState *state, ZyanU8 *start) {
     ZydisDecodedOperand *op0 = &state->instruction->operands[0];
 
@@ -301,11 +336,23 @@ static void handle_call(SeatbeltState *state, ZyanU8 *start) {
     ZyanU8 *call_address = state->current;
     ZyanU8 *target_address;
 
-    if (op0->type != ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+    if (!memory_location_from_operand(&state->instruction->operands[0], start, &target_address)) {
         return;
     }
 
-    target_address = memory_location_from_operand(op0, start);
+    // TODO Put a limit on following jumps, there could be infinite loops.
+    while (PEEK(state, target_address, target_address + MAX_TRAMPOLINE_LENGTH) &&
+        state->instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
+        // the call is being redirected somewhere
+        printf("redir\n");
+
+        if (!memory_location_from_operand(&state->instruction->operands[0], state->next, &target_address)) {
+            printf("Couldn't follow.\n");
+            break;
+        }
+    }
+
+    printf("%s\n", ZydisMnemonicGetString(state->instruction->mnemonic));
 
     if (!check_indirect_thunk(&trampoline_info, state, target_address)) {
         return;
@@ -324,11 +371,9 @@ static void handle_jmp(SeatbeltState *state, ZyanU8 *start) {
     ZyanU8 *jmp_address = state->current;
     ZyanU8 *target_address;
 
-    if (op0->type != ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+    if (!memory_location_from_operand(op0, start, &target_address)) {
         return;
     }
-
-    target_address = memory_location_from_operand(op0, start);
 
     if (!check_return_thunk(state, target_address)) {
         return;

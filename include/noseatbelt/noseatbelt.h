@@ -17,6 +17,9 @@ DllExport typedef struct SeatbeltState_ {
     // Pointer to current instruction
     ZyanU8 *current;
 
+    // Pointer to next instruction
+    ZyanU8 *next;
+
     // Current instruction
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
