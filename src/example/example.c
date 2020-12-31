@@ -18,8 +18,19 @@ void call_indirect() {
     what();
 }
 
+void inlineable_jumps() {
+    goto bottom;
+middle:
+    printf("You!");
+    return;
+bottom:
+    goto middle;
+}
+
+
 int main() {
     remove_all_seatbelts_auto();
     call_indirect();
+    inlineable_jumps();
     return 0;
 }

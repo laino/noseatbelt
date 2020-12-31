@@ -115,7 +115,16 @@ static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* ri
     return 0;
 }
 
+#define WINFO(start, fmt, ...) \
+    DEBUG_PRINT(1, "WRITE %p: " fmt, start, ##__VA_ARGS__)
+
 static void write_NOP(ZyanU8* start, ZyanU8* end) {
+    if (end <= start) {
+        return;
+    }
+
+    WINFO(start, "NOP (length %"PRIu64")\n", end - start);
+
     memset(start, 0x90, end - start);
 }
 
@@ -123,16 +132,18 @@ static void write_NOP(ZyanU8* start, ZyanU8* end) {
  * Writes a RET instruction.
  */
 static ZyanBool write_RET(ZyanU8* start, ZyanU8* end) {
+    WINFO(start, "RET\n");
+
     *start = 0xc3;
 
     // Fill rest with NOOP
-    memset(start + 1, 0x90, end - start - 1);
+    write_NOP(start + 1, end);
 
     return 1;
 }
 
 /*
- * Inlines an instruction
+ * Inlines an instruction.
  */
 static ZyanBool write_inline(ZyanU8* dst, ZyanU8* src, ZyanU8 src_len, ZyanU8 dst_len) {
     if (src_len > dst_len) {
@@ -140,13 +151,64 @@ static ZyanBool write_inline(ZyanU8* dst, ZyanU8* src, ZyanU8 src_len, ZyanU8 ds
         return 0;
     }
 
+    WINFO(dst, "inlining from %p (length %u/%u)\n", src, src_len, dst_len);
+
     memcpy(dst, src, src_len);
 
     // Fill rest with NOOP
-    memset(dst + src_len, 0x90, dst_len - src_len);
+    write_NOP(dst + src_len, dst + dst_len);
+
     return 1;
 }
 
+/*
+ * Writes a JMP instruction.
+ */
+static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
+    ZyanU8 ow[5];
+    ZyanU8 len;
+
+    ZyanI64 offset;
+    
+    offset = target - start - 2;
+    if (offset > -0xFF && offset < 0xFF) {
+        // Fits in 8 bit offset
+        len = 2;
+        ow[0] = 0xEB;
+        ow[1] = (ZyanI8) offset;
+
+        goto encode;
+    }
+
+    offset = target - start - 5;
+    if (offset > -0xFFFFFFFF && offset < 0xFFFFFFFF) {
+        // Fits in 32 bit offset
+        // 32COMPAT: On 32 bit this is rel16
+        len = 5;
+        ow[0] = 0xE9;
+
+        *((ZyanI32*) (ow + 1)) = (ZyanI32) offset;
+
+        goto encode;
+    }
+
+    // Can't encode
+    return 0;
+encode:
+    if (start + len > end) {
+        // Doesn't fit in dst
+        return 0;
+    }
+
+    WINFO(start, "JMP to %p (length %u)\n", target, len);
+
+    memcpy(start, ow, len);
+
+    // Fill rest with NOOP
+    write_NOP(start + len, end);
+
+    return 1;
+}
 
 /*
  * Writes a CALL instruction to a memory location stored in reg.
@@ -168,7 +230,7 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
         ow[2] = MODRM(3, 2, reg_code - 8);
     }
 
-    if (start + len >= end) {
+    if (start + len > end) {
         // Doesn't fit
         return 0;
     }
@@ -178,7 +240,10 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
      * returned *to* after call. That's why we put NOOPs
      * at the beginning.
      */
-    memset(start, 0x90, end - start - len);
+    write_NOP(start, end - len);
+
+    WINFO(start, "CALL to pointer in register %s (length %u)\n", ZydisRegisterGetString(reg), len);
+
     memcpy(end - len, ow, len);
 
     return 1;
@@ -321,7 +386,7 @@ static ZyanBool check_indirect_thunk(SeatbeltState *state, ZyanU8 *start, Trampo
 
     EXPECT_OP(RET, state, state->next, end);
 
-    PINFO(state, "Indirect thunk found for register %s\n", ZydisRegisterGetString(info->reg));
+    PVERBOSE(state, "Indirect thunk found for register %s\n", ZydisRegisterGetString(info->reg));
 
     return 1;
 }
@@ -338,7 +403,7 @@ static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     op0 = &state->instruction->operands[0];
     op1 = &state->instruction->operands[1];
 
-    // TODO: displacement will be different on 32bit
+    // 32COMPAT: displacement will be different on 32bit
     if (op0->type != ZYDIS_OPERAND_TYPE_REGISTER ||
         op0->reg.value != ZYDIS_REGISTER_RSP ||
         op1->type != ZYDIS_OPERAND_TYPE_MEMORY ||
@@ -354,7 +419,7 @@ static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
 
     EXPECT_OP(RET, state, state->next, end);
 
-    PINFO(state, "Return thunk found\n");
+    PVERBOSE(state, "Return thunk found\n");
 
     return 1;
 };
@@ -411,7 +476,6 @@ static ZyanBool handle_call(SeatbeltState *state) {
 
     if (DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH) &&
         state->instruction->mnemonic == ZYDIS_MNEMONIC_CALL) {
-        
         op0 = &state->instruction->operands[0];
 
         if (!memory_location_from_operand(op0, state->next, &target_address)) {
@@ -457,7 +521,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     ZydisDecodedOperand *op0 = &instruction->operands[0];
 
     ZyanU8 *jmp_address = state->current;
-    ZyanU8 jmp_len = instruction->length;
+    ZyanU8 *jmp_end = state->next;
 
     if (!memory_location_from_operand(op0, state->next, &target_address)) {
         return REWRITE_FLAG_NONE;
@@ -479,18 +543,34 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
 
     // We can only inline instructions that jump somewhere else
     if (instruction->mnemonic == ZYDIS_MNEMONIC_RET) {
-        if (write_inline(jmp_address, target_address, instruction->length, jmp_len)) {
-            INVALIDATE(state, jmp_address);
-
-            state->jumps_inlined++;
-
-            return REWRITE_FLAG_REWRITE_INLINE_JUMP;
+        if (!write_inline(jmp_address, target_address, instruction->length, jmp_end - jmp_address)) {
+            return REWRITE_FLAG_NONE;
         }
+
+        INVALIDATE(state, jmp_address);
+
+        state->jumps_inlined++;
+
+        return REWRITE_FLAG_REWRITE_INLINE_JUMP;
     }
 
-    /*if (instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
-     * needs to handle relative adressing
-    }*/
+    if (instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
+        op0 = &instruction->operands[0];
+
+        if (!memory_location_from_operand(op0, state->next, &target_address)) {
+            return REWRITE_FLAG_NONE;
+        }
+
+        if (!write_JMP(jmp_address, jmp_end, target_address)) {
+            return REWRITE_FLAG_NONE;
+        }
+
+        state->jumps_inlined++;
+
+        INVALIDATE(state, jmp_address);
+
+        return REWRITE_FLAG_REWRITE_INLINE_JUMP;
+    }
 
     return REWRITE_FLAG_NONE;
 }
