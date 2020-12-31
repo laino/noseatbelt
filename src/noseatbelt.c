@@ -406,6 +406,7 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
     state->current = 0;
     state->call_trampolines = 0;
     state->return_trampolines = 0;
+    state->bytes_processed = 0;
     state->instruction = &state->_instruction;
 
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
@@ -413,6 +414,8 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
 
 void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
     DEBUG_PRINT(1, "Scanning %p to %p\n", start, end);
+
+    state->bytes_processed += end - start;
 
     while (DECODE_OP(state, start, end)) {
         switch (state->instruction->mnemonic) {

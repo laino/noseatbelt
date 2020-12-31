@@ -6,13 +6,7 @@
 
 #include <noseatbelt/noseatbelt.h>
 
-#include "debug.h"
-
-void remove_all_seatbelts() {
-    SeatbeltState state;
-
-    init_seatbelt(&state, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
-
+void _remove_all_seatbelts(SeatbeltState *state) {
     FILE *fp = fopen("/proc/self/maps", "r");
 
     if (!fp) {
@@ -50,15 +44,12 @@ void remove_all_seatbelts() {
 
         mprotect((void*) start, end - start, PROT_WRITE | PROT_WRITE | PROT_EXEC);
 
-        remove_seatbelts(&state, (void*) start, (void*) end);
+        remove_seatbelts(state, (void*) start, (void*) end);
 
         mprotect((void*) start, end - start, prot);
     }
 
     fclose(fp);
-
-    DEBUG_PRINT(1, "Removed %lu call trampoline calls.\n", state.call_trampolines);
-    DEBUG_PRINT(1, "Removed %lu return trampoline jumps.\n", state.return_trampolines);
 }
 
 #endif

@@ -47,7 +47,7 @@ include_directories(
     ${CMAKE_BINARY_DIR}/dependencies/zydis
     ${CMAKE_BINARY_DIR}/dependencies/zydis/zycore)
 
-add_library(noseatbelt SHARED src/noseatbelt.c src/remove-all-unix.c src/remove-all-win32.c)
+add_library(noseatbelt SHARED src/noseatbelt.c src/remove-all.c)
 
 if (UNIX)
     target_link_libraries(noseatbelt PRIVATE Zydis) 

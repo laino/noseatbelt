@@ -1,6 +1,8 @@
-#define MAX_TRAMPOLINE_LENGTH 100
+#pragma once
 
 #include <Zydis/Zydis.h>
+
+#define MAX_TRAMPOLINE_LENGTH 100
 
 #ifdef WIN32
 #define DllExport   __declspec( dllexport )
@@ -33,6 +35,9 @@ DllExport typedef struct SeatbeltState_ {
 
     // Number of indirect returns found and removed
     ZyanUSize return_trampolines;
+
+    // Number of bytes processed
+    ZyanUSize bytes_processed;
 } SeatbeltState;
 
 DllExport typedef struct TrampolineInformation_ {

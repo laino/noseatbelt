@@ -11,11 +11,7 @@
 
 #include "debug.h"
 
-void remove_all_seatbelts() {
-    SeatbeltState state;
-
-    init_seatbelt(&state, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
-
+void _remove_all_seatbelts(SeatbeltState *state) {
     HMODULE pImage = GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
 
@@ -39,9 +35,6 @@ void remove_all_seatbelts() {
 
         ++pSectionHeaders;
     }
-
-    DEBUG_PRINT(1, "Removed %I64u call trampoline calls.\n", state.call_trampolines);
-    DEBUG_PRINT(1, "Removed %I64u return trampoline jumps.\n", state.return_trampolines);
 }
 
 #endif
