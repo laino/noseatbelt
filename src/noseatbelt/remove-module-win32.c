@@ -16,7 +16,6 @@ void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
 
         state->nt_config.cf_check_function =  *((ZyanU8**) load_config->GuardCFCheckFunctionPointer);
         state->nt_config.cf_dispatch_function = *((ZyanU8**) load_config->GuardCFDispatchFunctionPointer);
-        printf("dispatch %p\n", state->nt_config.cf_check_function);
     }
     
     IMAGE_SECTION_HEADER* pSectionHeaders = (IMAGE_SECTION_HEADER*) (pHeader + 1);

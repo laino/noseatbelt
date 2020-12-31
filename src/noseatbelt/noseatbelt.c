@@ -8,8 +8,8 @@
 #define MAX_THUNK_BODY_LENGTH 64
 
 // Allow at most 8 bytes for NOOPs
-#define MAX_NOOP 8
-#define MAX_INSTRUCTION_LENGTH 15 + MAX_NOOP
+#define MAX_DECODE_NOOP 8
+#define MAX_DECODE_INSTRUCTION_LENGTH 15 + MAX_DECODE_NOOP
 
 #define MAX_JUMP_DEPTH 3
 
@@ -409,7 +409,7 @@ static ZyanBool handle_call(SeatbeltState *state) {
     }
 #endif
 
-    if (DECODE_OP(state, target_address, target_address + MAX_INSTRUCTION_LENGTH) &&
+    if (DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH) &&
         state->instruction->mnemonic == ZYDIS_MNEMONIC_CALL) {
         
         op0 = &state->instruction->operands[0];
@@ -463,14 +463,14 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_NONE;
     }
 
-    if (!DECODE_OP(state, target_address, target_address + MAX_INSTRUCTION_LENGTH)) {
+    if (!DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH)) {
         return REWRITE_FLAG_NONE;
     }
 
     // Apply any transformations to the target address
     handle_instruction(state, jump_depth + 1);
 
-    if (!DECODE_OP(state, target_address, target_address + MAX_INSTRUCTION_LENGTH)) {
+    if (!DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH)) {
         return REWRITE_FLAG_NONE;
     }
 
