@@ -20,6 +20,10 @@ DllExport typedef struct SeatbeltState_ {
     // Pointer to next instruction
     ZyanU8 *next;
 
+    // TODO allow configuring an offse for the instruction pointer
+    // if it doesn't match the memory location.
+    // ZyanU8 *ioffset;
+
     // Current instruction
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
