@@ -20,7 +20,7 @@ Removes
 
 - [x] indirect calls via retpolines (Spectre mitigation)
 - [x] returns via return thunks (Spectre mitigation)
-- [x] Control Flow Guards
+- [x] Control Flow Guards (Windows CFI)
 - [ ] Return Flow Guards
 - [x] jumps that can be inlined
 - [ ] calls to functions that can be inlined

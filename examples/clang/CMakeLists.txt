@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 
 project (noseatbelt-example-clang)
 
@@ -8,7 +8,9 @@ add_executable(example_clang_clean ${example_SRC})
 add_executable(example_clang_hardened ${example_SRC})
 
 target_compile_options(example_clang_clean PRIVATE)
-target_compile_options(example_clang_hardened PRIVATE -mspeculative-load-hardening)
+target_compile_options(example_clang_hardened PRIVATE -mspeculative-load-hardening -fvisibility=hidden -flto -fsanitize=cfi)
+
+target_link_options(example_clang_hardened PRIVATE -flto)
 
 target_link_libraries(example_clang_clean PRIVATE noseatbelt)
 target_link_libraries(example_clang_hardened PRIVATE noseatbelt)
