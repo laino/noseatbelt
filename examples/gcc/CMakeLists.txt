@@ -4,10 +4,10 @@ project (noseatbelt-example-gcc)
 
 set(CMAKE_C_COMPILER gcc)
 
-add_executable(example_gcc_clean ../../src/example)
-add_executable(example_gcc_thunk ../../src/example)
-add_executable(example_gcc_thunk_inline ../../src/example)
-add_executable(example_gcc_fcf ../../src/example)
+add_executable(example_gcc_clean ${example_SRC})
+add_executable(example_gcc_thunk ${example_SRC})
+add_executable(example_gcc_thunk_inline ${example_SRC})
+add_executable(example_gcc_fcf ${example_SRC})
 
 target_compile_options(example_gcc_clean PRIVATE)
 target_compile_options(example_gcc_thunk PRIVATE -mindirect-branch=thunk -mfunction-return=thunk)
