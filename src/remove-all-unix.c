@@ -6,7 +6,7 @@
 
 #include <noseatbelt/noseatbelt.h>
 
-void _remove_all_seatbelts(SeatbeltState *state) {
+static void _remove_all_seatbelts(SeatbeltState *state) {
     FILE *fp = fopen("/proc/self/maps", "r");
 
     if (!fp) {

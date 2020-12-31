@@ -11,7 +11,7 @@
 
 #include "debug.h"
 
-void _remove_all_seatbelts(SeatbeltState *state) {
+static void _remove_all_seatbelts(SeatbeltState *state) {
     HMODULE pImage = GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
 
