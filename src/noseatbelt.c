@@ -365,8 +365,6 @@ static void handle_call(SeatbeltState *state, ZyanU8 *start) {
         }
     }
 
-    printf("%s\n", ZydisMnemonicGetString(state->instruction->mnemonic));
-
     if (!check_indirect_thunk(&trampoline_info, state, target_address)) {
         return;
     }
