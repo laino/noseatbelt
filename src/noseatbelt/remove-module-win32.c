@@ -9,6 +9,7 @@
 
 void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
+    ZyanU8* base_address = pHeader->OptionalHeader.ImageBase;
 
     if (pHeader->OptionalHeader.NumberOfRvaAndSizes >= 10) {
         IMAGE_LOAD_CONFIG_DIRECTORY *load_config = (IMAGE_LOAD_CONFIG_DIRECTORY*) 
@@ -20,7 +21,8 @@ void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     
     IMAGE_SECTION_HEADER* pSectionHeaders = (IMAGE_SECTION_HEADER*) (pHeader + 1);
 
-    ZyanU8* base_address = (ZyanU8*) pImage;
+    state->memory.start = base_address;
+    state->memory.end = base_address + pHeader->OptionalHeader.SizeOfImage;
 
     for (ZyanU8 count = 0u; count < pHeader->FileHeader.NumberOfSections; ++count) {
         if (memcmp(pSectionHeaders->Name, ".text", 5) == 0) {
@@ -38,6 +40,9 @@ void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
 
         ++pSectionHeaders;
     }
+
+    state->memory.start = 0;
+    state->memory.end = ((ZyanU8*) NULL) - 1;
 
     state->nt_config.cf_check_function = NULL;
     state->nt_config.cf_dispatch_function = NULL;

@@ -5,14 +5,7 @@
 #endif
 
 #include <Zydis/Zydis.h>
-
-#ifdef WIN32
-#define DllExport   __declspec( dllexport )
-#define DllImport   __declspec( dllimport )
-#else
-#define DllExport /* Only on WIN32 */
-#define DllImport /* Only on WIN32 */
-#endif
+#include "dll-helper.h"
 
 DllExport typedef struct SeatbeltState_ {
     // Decoder
@@ -31,6 +24,11 @@ DllExport typedef struct SeatbeltState_ {
     // Current instruction
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
+
+    struct memory_ {
+        ZyanU8* start;
+        ZyanU8* end;
+    } memory;
 
 #ifdef WIN32
     struct nt_config_ {
@@ -57,6 +55,12 @@ DllExport typedef struct SeatbeltState_ {
 
     // Number of bytes processed
     ZyanUSize bytes_processed;
+
+    // Number of instructions processed
+    ZyanUSize instructions_processed;
+
+    // Number of invalid instructions encountered
+    ZyanUSize invalid_instructions;
 } SeatbeltState;
 
 DllExport typedef struct TrampolineInformation_ {

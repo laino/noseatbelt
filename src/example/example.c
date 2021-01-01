@@ -3,7 +3,6 @@
  */
 
 #include <stdio.h>
-
 #include <noseatbelt/noseatbelt.h>
 
 void test() {
@@ -26,7 +25,6 @@ middle:
 bottom:
     goto middle;
 }
-
 
 int main() {
     remove_all_seatbelts_auto();

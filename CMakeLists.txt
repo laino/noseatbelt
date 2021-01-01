@@ -19,6 +19,7 @@ endif()
 
 file(GLOB noseatbelt_SRC CONFIGURE_DEPENDS "src/noseatbelt/*.c")
 file(GLOB preload_SRC CONFIGURE_DEPENDS "src/preload/*.c")
+file(GLOB auto_SRC CONFIGURE_DEPENDS "src/auto-dll/*.c")
 file(GLOB example_SRC CONFIGURE_DEPENDS "src/example/*.c")
 
 if (UNIX)
@@ -61,9 +62,16 @@ endif ()
 
 if (UNIX)
 add_library(noseatbelt-auto SHARED ${preload_SRC})
-target_link_libraries(noseatbelt-auto PRIVATE noseatbelt Zydis dl)
+target_link_libraries(noseatbelt-auto PRIVATE noseatbelt dl)
 set_property(TARGET noseatbelt-auto PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif (UNIX)
+
+if (WIN32)
+add_library(noseatbelt-auto SHARED ${auto_SRC})
+set_target_properties(noseatbelt-auto PROPERTIES SUFFIX ".asi")
+target_link_libraries(noseatbelt-auto PRIVATE noseatbelt)
+set_property(TARGET noseatbelt-auto PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif (WIN32)
 
 # On Windows we only use the current compiler
 

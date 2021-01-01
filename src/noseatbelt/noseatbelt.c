@@ -85,7 +85,7 @@ static ZyanBool memory_location_from_immediate_operand(ZydisDecodedOperand *op, 
 /*
  * Attempts to statically calculate the address of a memory operand if possible.
  */
-static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+static ZyanBool memory_location_from_memory_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->mem.base == ZYDIS_REGISTER_RIP &&
         op->mem.disp.has_displacement &&
         op->mem.index == ZYDIS_REGISTER_NONE &&
@@ -94,8 +94,15 @@ static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, Zya
         op->mem.segment == ZYDIS_REGISTER_CS ||
         op->mem.segment == ZYDIS_REGISTER_SS ||
         op->mem.segment == ZYDIS_REGISTER_DS)) {
+        
+        ZyanU8 *ptr = rip + op->mem.disp.value;
 
-        *loc = *(ZyanU8**)(rip + op->mem.disp.value);
+        if (ptr < state->memory.start || ptr >= state->memory.end) {
+            return 0;
+        }
+
+        *loc = *((ZyanU8**) ptr);
+
         return 1;
     }
 
@@ -105,11 +112,11 @@ static ZyanBool memory_location_from_memory_operand(ZydisDecodedOperand *op, Zya
 /*
  * Attempts to statically calculate the address of an operand if possible.
  */
-static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+static ZyanBool memory_location_from_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
         return memory_location_from_immediate_operand(op, rip, loc);
     } else if (op->type == ZYDIS_OPERAND_TYPE_MEMORY) {
-        return memory_location_from_memory_operand(op, rip, loc);
+        return memory_location_from_memory_operand(state, op, rip, loc);
     }
 
     return 0;
@@ -118,14 +125,38 @@ static ZyanBool memory_location_from_operand(ZydisDecodedOperand *op, ZyanU8* ri
 #define WINFO(start, fmt, ...) \
     DEBUG_PRINT(1, "WRITE %p: " fmt, start, ##__VA_ARGS__)
 
+static ZyanU8 NOOP_TABLE[9][9] = {
+    {0x90},
+    {0x66, 0x90},
+    {0x0F, 0x1F, 0x00},
+    {0x0F, 0x1F, 0x40, 0x00},
+    {0x0F, 0x1F, 0x44, 0x00, 0x00},
+    {0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00},
+    {0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00},
+    {0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},
+    {0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},
+};
+
 static void write_NOP(ZyanU8* start, ZyanU8* end) {
-    if (end <= start) {
-        return;
+    ZyanU8 len;
+    
+    while (1) {
+        len = end - start;
+
+        if (len <= 0) {
+            return;
+        }
+
+        if (len > 10) {
+            len = 9;
+        }
+
+        WINFO(start, "NOP (length %"PRIu64")\n", len);
+
+        memcpy(start, NOOP_TABLE[len - 1], len);
+
+        start += len;
     }
-
-    WINFO(start, "NOP (length %"PRIu64")\n", end - start);
-
-    memset(start, 0x90, end - start);
 }
 
 /*
@@ -211,9 +242,9 @@ encode:
 }
 
 /*
- * Writes a CALL instruction to a memory location stored in reg.
+ * Writes a CALL or JMP instruction to a memory location stored in reg.
  */
-static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+static ZyanBool write_CALL_or_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg, ZyanU8 opcode) {
     ZyanU8 reg_code = register_code(reg);
 
     ZyanU8 ow[3];
@@ -222,12 +253,12 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     if (reg_code < 8) {
         len = 2;
         ow[0] = 0xFF;
-        ow[1] = MODRM(3, 2, reg_code);
+        ow[1] = MODRM(3, opcode, reg_code);
     } else {
         len = 3;
         ow[0] = 0x41;
         ow[1] = 0xFF;
-        ow[2] = MODRM(3, 2, reg_code - 8);
+        ow[2] = MODRM(3, opcode, reg_code - 8);
     }
 
     if (start + len > end) {
@@ -242,11 +273,25 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
      */
     write_NOP(start, end - len);
 
-    WINFO(start, "CALL to pointer in register %s (length %u)\n", ZydisRegisterGetString(reg), len);
+    WINFO(start, "%s to pointer in register %s (length %u)\n", opcode < 4 ? "CALL" : "JMP", ZydisRegisterGetString(reg), len);
 
     memcpy(end - len, ow, len);
 
     return 1;
+}
+
+/*
+ * Writes a JMP instruction to a memory location stored in reg.
+ */
+static ZyanBool write_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+    return write_CALL_or_JMP_register(start, end, reg, 4);
+}
+
+/*
+ * Writes a CALL instruction to a memory location stored in reg.
+ */
+static ZyanBool write_CALL_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
+    return write_CALL_or_JMP_register(start, end, reg, 2);
 }
 
 enum DECODE_FLAGS {
@@ -260,17 +305,17 @@ enum DECODE_FLAGS {
 #define PVERBOSE(state, fmt, ...) \
     DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
 
-static ZyanBool decode_next(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end, ZyanU8 flags) {
-    ZyanU8 status = 1;
+static ZyanStatus decode_next(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end, ZyanU8 flags) {
+    ZyanStatus status = ZYAN_STATUS_SUCCESS;
 
     ZydisDecodedInstruction* instruction = state->instruction;
 
     do {
         // Make peeking free
         if (start != state->current) {
-            status = ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&state->decoder, start, end - start, instruction));
+            status = ZydisDecoderDecodeBuffer(&state->decoder, start, end - start, instruction);
 
-            if (!status) {
+            if (ZYAN_FAILED(status)) {
                 return status;
             }
 
@@ -299,8 +344,8 @@ static ZyanBool invalidate(SeatbeltState *state, ZyanU8 *address) {
 }
 
 #define INVALIDATE(state, start) invalidate(state, start)
-#define DECODE_OP(state, start, end) decode_next(state, start, end, DECODE_FLAG_SKIP_NOOP)
-#define DECODE(state, start, end) decode_next(state, start, end, DECODE_FLAG_NONE)
+#define DECODE_OP(state, start, end) ZYAN_SUCCESS(decode_next(state, start, end, DECODE_FLAG_SKIP_NOOP))
+#define DECODE(state, start, end) ZYAN_SUCCESS(decode_next(state, start, end, DECODE_FLAG_NONE))
 
 #define EXPECT_OP(ins, state, start, end) \
     if (!DECODE_OP(state, start, end) || state->instruction->mnemonic != ZYDIS_MNEMONIC_ ## ins) {\
@@ -321,7 +366,7 @@ static ZyanBool check_thunk_head(SeatbeltState *state, ZyanU8 *start, ZyanU8 **t
 
     EXPECT_OP(CALL, state, start, end);
 
-    if (!memory_location_from_operand(&state->instruction->operands[0], state->next, &call_target)) {
+    if (!memory_location_from_operand(state, &state->instruction->operands[0], state->next, &call_target)) {
         PVERBOSE(state, "Couldn't decode CALL target\n");
         return 0;
     }
@@ -332,7 +377,7 @@ static ZyanBool check_thunk_head(SeatbeltState *state, ZyanU8 *start, ZyanU8 **t
     EXPECT_OP(LFENCE, state, state->next, end);
     EXPECT_OP(JMP, state, state->next, end);
 
-    if (!memory_location_from_operand(&state->instruction->operands[0], state->next, &jmp_target)) {
+    if (!memory_location_from_operand(state, &state->instruction->operands[0], state->next, &jmp_target)) {
         PVERBOSE(state, "Couldn't decode JMP target\n");
         return 0;
     }
@@ -428,7 +473,8 @@ typedef enum REWRITE_FLAGS_{
     REWRITE_FLAG_NONE = 0x0,
     REWRITE_FLAG_REWRITE_RET = 0x1,
     REWRITE_FLAG_REWRITE_CALL = 0x2,
-    REWRITE_FLAG_REWRITE_INLINE_JUMP = 0x4,
+    REWRITE_FLAG_REWRITE_JMP = 0x4,
+    REWRITE_FLAG_REWRITE_INLINE = 0x8,
 } REWRITE_FLAGS;
 
 static REWRITE_FLAGS handle_instruction(SeatbeltState *state, ZyanU8 jump_depth);
@@ -446,13 +492,13 @@ static ZyanBool handle_call(SeatbeltState *state) {
 
     ZydisDecodedOperand *op0 = &state->instruction->operands[0];
 
-    if (!memory_location_from_operand(op0, call_next, &target_address)) {
+    if (!memory_location_from_operand(state, op0, call_next, &target_address)) {
         return REWRITE_FLAG_NONE;
     }
 
 #ifdef WIN32
     if (target_address == state->nt_config.cf_dispatch_function) {
-        if (write_CALL(call_address, call_next, ZYDIS_REGISTER_RAX)) {
+        if (write_CALL_register(call_address, call_next, ZYDIS_REGISTER_RAX)) {
             INVALIDATE(state, call_address);
 
             state->dispatch_icall++;
@@ -474,11 +520,15 @@ static ZyanBool handle_call(SeatbeltState *state) {
     }
 #endif
 
+    if (target_address < state->memory.start || target_address >= state->memory.end) {
+        return REWRITE_FLAG_NONE;
+    }
+
     if (DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH) &&
         state->instruction->mnemonic == ZYDIS_MNEMONIC_CALL) {
         op0 = &state->instruction->operands[0];
 
-        if (!memory_location_from_operand(op0, state->next, &target_address)) {
+        if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
             return REWRITE_FLAG_NONE;
         }
 
@@ -486,7 +536,7 @@ static ZyanBool handle_call(SeatbeltState *state) {
             return REWRITE_FLAG_NONE;
         }
 
-        if (write_CALL(call_address, call_next, trampoline_info.reg)) {
+        if (write_CALL_register(call_address, call_next, trampoline_info.reg)) {
             INVALIDATE(state, call_address);
 
             state->call_trampolines++;
@@ -521,9 +571,39 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     ZydisDecodedOperand *op0 = &instruction->operands[0];
 
     ZyanU8 *jmp_address = state->current;
-    ZyanU8 *jmp_end = state->next;
+    ZyanU8 *jmp_next = state->next;
 
-    if (!memory_location_from_operand(op0, state->next, &target_address)) {
+    if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
+        return REWRITE_FLAG_NONE;
+    }
+    
+#ifdef WIN32
+    if (target_address == state->nt_config.cf_dispatch_function) {
+        if (write_JMP_register(jmp_address, jmp_next, ZYDIS_REGISTER_RAX)) {
+            INVALIDATE(state, jmp_address);
+
+            state->dispatch_icall++;
+
+            return REWRITE_FLAG_REWRITE_JMP;
+        }
+
+        return REWRITE_FLAG_NONE;
+    }
+
+    if (target_address == state->nt_config.cf_check_function) {
+        if (write_RET(jmp_address, jmp_next)) {
+            INVALIDATE(state, jmp_address);
+
+            state->check_icall++;
+
+            return REWRITE_FLAG_REWRITE_RET;
+        }
+        
+        return REWRITE_FLAG_NONE;
+    }
+#endif
+
+    if (target_address < state->memory.start || target_address >= state->memory.end) {
         return REWRITE_FLAG_NONE;
     }
 
@@ -543,7 +623,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
 
     // We can only inline instructions that jump somewhere else
     if (instruction->mnemonic == ZYDIS_MNEMONIC_RET) {
-        if (!write_inline(jmp_address, target_address, instruction->length, jmp_end - jmp_address)) {
+        if (!write_inline(jmp_address, target_address, instruction->length, jmp_next - jmp_address)) {
             return REWRITE_FLAG_NONE;
         }
 
@@ -551,17 +631,17 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
 
         state->jumps_inlined++;
 
-        return REWRITE_FLAG_REWRITE_INLINE_JUMP;
+        return REWRITE_FLAG_REWRITE_INLINE;
     }
 
     if (instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
         op0 = &instruction->operands[0];
 
-        if (!memory_location_from_operand(op0, state->next, &target_address)) {
+        if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
             return REWRITE_FLAG_NONE;
         }
 
-        if (!write_JMP(jmp_address, jmp_end, target_address)) {
+        if (!write_JMP(jmp_address, jmp_next, target_address)) {
             return REWRITE_FLAG_NONE;
         }
 
@@ -569,7 +649,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
 
         INVALIDATE(state, jmp_address);
 
-        return REWRITE_FLAG_REWRITE_INLINE_JUMP;
+        return REWRITE_FLAG_REWRITE_INLINE;
     }
 
     return REWRITE_FLAG_NONE;
@@ -595,6 +675,11 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
     state->check_icall = 0;
     state->jumps_inlined = 0;
     state->bytes_processed = 0;
+    state->instructions_processed = 0;
+    state->invalid_instructions = 0;
+
+    state->memory.start = 0;
+    state->memory.end = ((ZyanU8*) NULL) - 1;
 
     state->instruction = &state->_instruction;
 
@@ -611,8 +696,21 @@ void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
 
     state->bytes_processed += end - start;
 
-    while (DECODE_OP(state, start, end)) {
+    ZyanStatus status;
+
+    while (start < end) {
+        status = decode_next(state, start, end, DECODE_FLAG_NONE);
+
+        if (ZYAN_FAILED(status)) {
+            state->invalid_instructions++;
+            start++;
+            continue;
+        }
+
         start = state->next;
+
+        state->instructions_processed++;
+
         handle_instruction(state, 0);
     }
 }
