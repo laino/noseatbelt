@@ -53,6 +53,9 @@ DllExport typedef struct SeatbeltState_ {
     // jumps to return trampolines
     ZyanUSize jumps_inlined;
 
+    // Number of call redirects resolved and inlined
+    ZyanUSize call_redirects_resolved;
+
     // Number of bytes processed
     ZyanUSize bytes_processed;
 

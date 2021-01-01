@@ -21,6 +21,7 @@ void remove_all_seatbelts_auto() {
 
     DEBUG_PRINT(1, " %"PRIu64" call trampolines\n", state.call_trampolines);
     DEBUG_PRINT(1, " %"PRIu64" return trampolines\n", state.return_trampolines);
+    DEBUG_PRINT(1, " %"PRIu64" calls redirected\n", state.call_redirects_resolved);
     DEBUG_PRINT(1, " %"PRIu64" jumps inlined\n", state.jumps_inlined);
 #ifdef WIN32
     DEBUG_PRINT(1, " %"PRIu64" _guard_dispatch_icall calls\n", state.dispatch_icall);

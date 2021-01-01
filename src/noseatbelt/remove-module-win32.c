@@ -9,7 +9,7 @@
 
 void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
-    ZyanU8* base_address = pHeader->OptionalHeader.ImageBase;
+    ZyanU8* base_address = (ZyanU8*) pHeader->OptionalHeader.ImageBase;
 
     if (pHeader->OptionalHeader.NumberOfRvaAndSizes >= 10) {
         IMAGE_LOAD_CONFIG_DIRECTORY *load_config = (IMAGE_LOAD_CONFIG_DIRECTORY*) 
