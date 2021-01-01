@@ -273,7 +273,7 @@ static ZyanBool write_CALL_or_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegi
      */
     write_NOP(start, end - len);
 
-    WINFO(start, "%s to pointer in register %s (length %u)\n", opcode < 4 ? "CALL" : "JMP", ZydisRegisterGetString(reg), len);
+    WINFO(end - len, "%s to pointer in register %s (length %u)\n", opcode < 4 ? "CALL" : "JMP", ZydisRegisterGetString(reg), len);
 
     memcpy(end - len, ow, len);
 
