@@ -7,14 +7,6 @@ This library detects and removes mitigations (Spectre, CFG, ...) from a running 
 
 Currently WIP.
 
-Support
--------
-
-- [x] Linux 64bit
-- [ ] Linux 32bit
-- [x] Windows 64bit
-- [ ] Windows 32bit
-
 Transformations
 ---------------
 
@@ -28,6 +20,14 @@ Currently the following transformations are applied:
 - [x] inlining of JMP instructions (to RET or JMP)
 - [x] redirecting of CALL instructions (to JMP or another CALL)
 - [ ] inlining of functions
+
+Support
+-------
+
+- [x] Linux 64bit
+- [ ] Linux 32bit
+- [x] Windows 64bit
+- [ ] Windows 32bit
 
 Build
 -----
