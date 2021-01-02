@@ -7,6 +7,16 @@
 #include <Zydis/Zydis.h>
 #include "dll-helper.h"
 
+typedef struct SeatbeltMemoryRegion_ {
+    ZyanU8* start;
+    ZyanU8* end;
+} SeatbeltMemoryRegion;
+
+typedef struct SeatbeltMemory {
+    ZyanUSize num_regions;
+    SeatbeltMemoryRegion regions[];
+} SeatbeltMemory;
+
 DllExport typedef struct SeatbeltState_ {
     // Decoder
     ZydisDecoder decoder;
@@ -17,6 +27,12 @@ DllExport typedef struct SeatbeltState_ {
     // Pointer to next instruction
     ZyanU8 *next;
 
+    // current memory region start
+    ZyanU8 *current_region_start;
+
+    // current memory region end
+    ZyanU8 *current_region_end;
+
     // TODO allow configuring an offse for the instruction pointer
     // if it doesn't match the memory location.
     // ZyanU8 *ioffset;
@@ -25,10 +41,10 @@ DllExport typedef struct SeatbeltState_ {
     ZydisDecodedInstruction *instruction;
     ZydisDecodedInstruction _instruction; // TODO: instruction cache?
 
-    struct memory_ {
-        ZyanU8* start;
-        ZyanU8* end;
-    } memory;
+    // The executable memory with read+write permissions.
+    // If not NULL, only the regions listed here will be written to or read from.
+    // Must be an ordered list.
+    SeatbeltMemory *memory;
 
 #ifdef WIN32
     struct nt_config_ {
@@ -49,11 +65,12 @@ DllExport typedef struct SeatbeltState_ {
     // Number of _guard_dispatch_icall calls rewritten
     ZyanUSize dispatch_icall;
 
-    // Number of jumps inlined, note that this includes
-    // jumps to return trampolines
+    // Number of jumps inlined
+    // note that this includes jumps to trampolines
     ZyanUSize jumps_inlined;
 
     // Number of call redirects resolved and inlined
+    // note that this includes calls to trampolines
     ZyanUSize call_redirects_resolved;
 
     // Number of bytes processed

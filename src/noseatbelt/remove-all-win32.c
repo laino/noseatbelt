@@ -8,7 +8,7 @@
 
 static void _remove_all_seatbelts(SeatbeltState *state) {
     HMODULE pImage = GetModuleHandleA(NULL);
-    
+
     remove_module_seatbelts(state, pImage);
 }
 

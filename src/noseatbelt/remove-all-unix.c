@@ -1,19 +1,35 @@
 #ifdef UNIX
 
+#include <malloc.h>
 #include <stdio.h>
 #include <limits.h>
 #include <sys/mman.h>
 
 #include <noseatbelt/noseatbelt.h>
 
+#define MAX_REGIONS 512
+
 static void _remove_all_seatbelts(SeatbeltState *state) {
-    FILE *fp = fopen("/proc/self/maps", "r");
+    SeatbeltMemory* memory, *old_memory;
+    SeatbeltMemoryRegion *region;
+    FILE *fp;
+    int i;
+
+    fp = fopen("/proc/self/maps", "r");
 
     if (!fp) {
         return;
     }
 
-    while (!feof(fp)) {
+    old_memory = state->memory;
+
+    memory = malloc(sizeof(SeatbeltMemory) + sizeof(SeatbeltMemoryRegion) * MAX_REGIONS);
+    memory->num_regions = 0;
+    state->memory = memory;
+
+    int OLD_FLAGS[MAX_REGIONS];
+
+    while ((!feof(fp)) && memory->num_regions < MAX_REGIONS) {
         char buf[PATH_MAX+100], perm[5], dev[6], mapname[PATH_MAX];
         unsigned long start, end, inode, foo;
         int prot = 0;
@@ -42,12 +58,32 @@ static void _remove_all_seatbelts(SeatbeltState *state) {
             continue;
         }
 
-        mprotect((void*) start, end - start, PROT_WRITE | PROT_WRITE | PROT_EXEC);
+        region = &memory->regions[memory->num_regions];
+        region->start = (ZyanU8*) start;
+        region->end = (ZyanU8*) end;
 
-        remove_seatbelts(state, (void*) start, (void*) end);
+        OLD_FLAGS[memory->num_regions] = prot;
 
-        mprotect((void*) start, end - start, prot);
+        mprotect(region->start, region->end - region->start, PROT_WRITE | PROT_WRITE | PROT_EXEC);
+
+        memory->num_regions++;
     }
+
+    for (i = 0; i < memory->num_regions; i++) {
+        region = &memory->regions[i];
+
+        remove_seatbelts(state, region->start, region->end);
+    }
+
+    for (i = 0; i < memory->num_regions; i++) {
+        region = &memory->regions[i];
+
+        mprotect(region->start, region->end - region->start, OLD_FLAGS[i]);
+    }
+
+    state->memory = old_memory;
+
+    free(memory);
 
     fclose(fp);
 }

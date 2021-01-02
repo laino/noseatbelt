@@ -5,41 +5,38 @@
 #include <stdio.h>
 #include <noseatbelt/noseatbelt.h>
 
-void test() {
-    printf("Indirect\n");
+void test1() {
+    printf("Indirect 1\n");
     return;
 }
 
-void (*what)();
+void test2() {
+    printf("Indirect 2\n");
+    return;
+}
 
-void call_indirect() {
-    what = test;
+static void (*what)();
+
+static void __attribute__ ((noinline)) call_indirect1() {
     what();
 }
 
-void redirect_target() {
-    goto next;
-next:
-    printf("Redirect\n");
+static void __attribute__ ((noinline)) call_indirect2() {
+    what();
+    printf("After Indirect\n");
 }
 
-void call_redirect() {
-    redirect_target();
-}
-
-void inlineable_jumps() {
-    goto bottom;
-middle:
-    printf("Jump\n");
-    return;
-bottom:
-    goto middle;
+static void __attribute__ ((noinline)) call_redirect() {
+    call_indirect1();
 }
 
 int main() {
     remove_all_seatbelts_auto();
-    call_indirect();
+    what = test1;
+    call_indirect1();
+    call_indirect2();
+    what = test2;
     call_redirect();
-    inlineable_jumps();
+    printf("Goodbye\n");
     return 0;
 }

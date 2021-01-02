@@ -7,8 +7,8 @@ set(CMAKE_C_COMPILER clang)
 add_executable(example_clang_clean ${example_SRC})
 add_executable(example_clang_hardened ${example_SRC})
 
-target_compile_options(example_clang_clean PRIVATE)
-target_compile_options(example_clang_hardened PRIVATE -mspeculative-load-hardening -fvisibility=hidden -flto -fsanitize=cfi)
+target_compile_options(example_clang_clean PRIVATE -O3)
+target_compile_options(example_clang_hardened PRIVATE -O3 -mspeculative-load-hardening -fvisibility=hidden -flto -fsanitize=cfi)
 
 target_link_options(example_clang_hardened PRIVATE -flto)
 
