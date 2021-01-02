@@ -482,9 +482,14 @@ static ZyanStatus decode_next(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end, 
 
             state->current = start;
             state->next = start + instruction->length;
-
-            DEBUG_PRINT(3, "%p %s\n", start, ZydisMnemonicGetString(instruction->mnemonic));
         }
+
+        #if !defined(NDEBUG) && NOSEATBELT_DEBUG_LEVEL > 2
+        char str[100];
+        if (ZydisFormatterFormatInstruction(&state->formatter, state->instruction, str, 100, (ZyanU64) start)) {
+            DEBUG_PRINT(3, "%p %s\n", start, str);
+        }
+        #endif
 
         start = state->next;
     } while (flags & DECODE_FLAG_SKIP_NOOP && instruction->mnemonic == ZYDIS_MNEMONIC_NOP);
@@ -871,6 +876,10 @@ static REWRITE_FLAGS handle_instruction(SeatbeltState *state, ZyanU8 jump_depth)
 
 void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
     ZydisDecoderInit(&state->decoder, machine_mode, address_width);
+
+#ifndef NDEBUG
+    ZydisFormatterInit(&state->formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+#endif
 
     state->instruction = &state->_instruction;
 

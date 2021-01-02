@@ -27,6 +27,11 @@ DllExport typedef struct SeatbeltState_ {
     // Decoder
     ZydisDecoder decoder;
 
+#ifndef NDEBUG
+    // Formatter
+    ZydisFormatter formatter; 
+#endif
+
     // Pointer to current instruction
     ZyanU8 *current;
 
