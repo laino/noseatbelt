@@ -31,7 +31,7 @@ void _remove_all_seatbelts(SeatbeltState *state) {
 
     while ((!feof(fp)) && memory->num_regions < MAX_REGIONS) {
         char buf[PATH_MAX+100], perm[5], dev[6], mapname[PATH_MAX];
-        unsigned long start, end, inode, foo;
+        unsigned long start, end, inode, other;
         int prot = 0;
 
         if(fgets(buf, sizeof(buf), fp) == 0) {
@@ -40,7 +40,7 @@ void _remove_all_seatbelts(SeatbeltState *state) {
 
         mapname[0] = '\0';
 
-        sscanf(buf, "%lx-%lx %4s %lx %5s %ld %s", &start, &end, perm, &foo, dev, &inode, mapname);
+        sscanf(buf, "%lx-%lx %4s %lx %5s %ld %s", &start, &end, perm, &other, dev, &inode, mapname);
 
         if (perm[0] == 'r') {
             prot |= PROT_READ;
@@ -59,20 +59,37 @@ void _remove_all_seatbelts(SeatbeltState *state) {
         }
 
         region = &memory->regions[memory->num_regions];
+        OLD_FLAGS[memory->num_regions] = prot;
+        memory->num_regions++;
+
         region->start = (ZyanU8*) start;
         region->end = (ZyanU8*) end;
 
-        OLD_FLAGS[memory->num_regions] = prot;
-
+        printf("%p - %p\n", region->start, region->end);
         mprotect(region->start, region->end - region->start, PROT_WRITE | PROT_WRITE | PROT_EXEC);
-
-        memory->num_regions++;
     }
 
+    ZyanU8 *region_start = 0,
+           *region_end = 0;
+
+    // Combines adjacent regions
     for (i = 0; i < memory->num_regions; i++) {
         region = &memory->regions[i];
 
-        remove_seatbelts(state, region->start, region->end);
+        if (region->start == region_end) {
+            region_end = region->end;
+        } else {
+            if (region_end - region_start > 0) {
+                remove_seatbelts(state, region_start, region_end);
+            }
+
+            region_start = region->start;
+            region_end = region->end;
+        }
+    }
+
+    if (region_end - region_start > 0) {
+        remove_seatbelts(state, region_start, region_end);
     }
 
     for (i = 0; i < memory->num_regions; i++) {

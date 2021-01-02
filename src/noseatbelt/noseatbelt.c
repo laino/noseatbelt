@@ -870,7 +870,16 @@ static REWRITE_FLAGS handle_instruction(SeatbeltState *state, ZyanU8 jump_depth)
 }
 
 void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width) {
-    state->current = ((ZyanU8*) 0) - 1;
+    ZydisDecoderInit(&state->decoder, machine_mode, address_width);
+
+    state->instruction = &state->_instruction;
+
+    state->current = 0;
+    state->next = 0;
+
+    state->memory = NULL;
+    state->current_region_start = 0;
+    state->current_region_end = 0;
 
     state->call_trampolines = 0;
     state->return_trampolines = 0;
@@ -882,16 +891,10 @@ void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAdd
     state->instructions_processed = 0;
     state->invalid_instructions = 0;
 
-    state->memory = NULL;
-
-    state->instruction = &state->_instruction;
-
 #ifdef WIN32
     state->nt_config.cf_check_function = NULL;
     state->nt_config.cf_dispatch_function = NULL;
 #endif
-
-    ZydisDecoderInit(&state->decoder, machine_mode, address_width);
 }
 
 void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
