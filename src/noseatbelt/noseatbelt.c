@@ -164,14 +164,19 @@ static ZyanBool memory_location_from_memory_operand(SeatbeltState *state, ZydisD
     return 0;
 }
 
-/*
- * Attempts to statically calculate the address of an operand if possible.
- */
-static ZyanBool memory_location_from_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+#define IS_INDIRECT_OPERAND(op) (op->type == ZYDIS_OPERAND_TYPE_MEMORY)
+
+static inline ZyanBool memory_location_from_indirect_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
+    if (op->type == ZYDIS_OPERAND_TYPE_MEMORY) {
+        return memory_location_from_memory_operand(state, op, rip, loc);
+    }
+
+    return 0;
+}
+
+static inline ZyanBool memory_location_from_direct_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
         return memory_location_from_immediate_operand(op, rip, loc);
-    } else if (op->type == ZYDIS_OPERAND_TYPE_MEMORY) {
-        return memory_location_from_memory_operand(state, op, rip, loc);
     }
 
     return 0;
@@ -534,11 +539,16 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
 
     ZydisDecodedOperand *op0 = &state->instruction->operands[0];
 
-    if (!memory_location_from_operand(state, op0, call_next, &target_address)) {
-        return REWRITE_FLAG_NONE;
-    }
+    if (!memory_location_from_direct_operand(state, op0, call_next, &target_address)) {
+        // indirect operands will cause a memory location to be read
+        // when the instruction is executed, it's generallly not safe to do much here
 
 #ifdef WIN32
+        if (!memory_location_from_indirect_operand(state, op0, call_next, &target_address)) {
+            return REWRITE_FLAG_NONE;
+        }
+    }
+
     // CALL to _guard_dispatch_icall
     if (target_address == state->nt_config.cf_dispatch_function) {
         if (!write_CALL_register(call_address, call_next, ZYDIS_REGISTER_RAX)) {
@@ -562,7 +572,12 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
 
         return REWRITE_FLAG_REWRITE_CALL;
     }
+
+    if (IS_INDIRECT_OPERAND(op0)) {
 #endif
+        return REWRITE_FLAG_NONE;
+    }
+
     // indirect thunk
     if (check_indirect_thunk(state, target_address, &trampoline_info)) {
         if (!write_JMP_register(call_address, call_next, trampoline_info.reg)) {
@@ -603,7 +618,7 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
             return REWRITE_FLAG_REWRITE_CALL;
         }
 
-        if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
+        if (!memory_location_from_direct_operand(state, op0, state->next, &target_address)) {
             return REWRITE_FLAG_NONE;
         }
 
@@ -644,11 +659,17 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     ZyanU8 *jmp_address = state->current;
     ZyanU8 *jmp_next = state->next;
 
-    if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
-        return REWRITE_FLAG_NONE;
-    }
+    if (!memory_location_from_direct_operand(state, op0, jmp_next, &target_address)) {
+        // indirect operands will cause a memory location to be read
+        // when the instruction is executed, it's generallly not safe to do much here
 
 #ifdef WIN32
+        if (!memory_location_from_indirect_operand(state, op0, jmp_next, &target_address)) {
+            return REWRITE_FLAG_NONE;
+        }
+    }
+
+    // JMP to _guard_dispatch_icall
     if (target_address == state->nt_config.cf_dispatch_function) {
         if (!write_JMP_register(jmp_address, jmp_next, ZYDIS_REGISTER_RAX)) {
             return REWRITE_FLAG_NONE;
@@ -661,6 +682,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_REWRITE_JMP;
     }
 
+    // JMP to _guard_check_icall
     if (target_address == state->nt_config.cf_check_function) {
         if (!write_RET(jmp_address, jmp_next)) {
             return REWRITE_FLAG_NONE;
@@ -672,7 +694,12 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
 
         return REWRITE_FLAG_REWRITE_RET;
     }
+
+    if (IS_INDIRECT_OPERAND(op0)) {
 #endif
+        return REWRITE_FLAG_NONE;
+    }
+
     if (!DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH)) {
         return REWRITE_FLAG_NONE;
     }
@@ -716,7 +743,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
             return REWRITE_FLAG_REWRITE_JMP;
         }
 
-        if (!memory_location_from_operand(state, op0, state->next, &target_address)) {
+        if (!memory_location_from_direct_operand(state, op0, state->next, &target_address)) {
             return REWRITE_FLAG_NONE;
         }
 

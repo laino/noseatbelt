@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include <noseatbelt/noseatbelt.h>
 
+#if defined(__GNUC__) || defined(__clang__)
+#define NOINLINE __attribute__ ((noinline))
+#else
+#define NOINLINE
+#endif
+
 void test1() {
     printf("Indirect 1\n");
     return;
@@ -17,16 +23,16 @@ void test2() {
 
 static void (*what)();
 
-static void __attribute__ ((noinline)) call_indirect1() {
+static void NOINLINE call_indirect1() {
     what();
 }
 
-static void __attribute__ ((noinline)) call_indirect2() {
+static void NOINLINE call_indirect2() {
     what();
     printf("After Indirect\n");
 }
 
-static void __attribute__ ((noinline)) call_redirect() {
+static void NOINLINE call_redirect() {
     call_indirect1();
 }
 
