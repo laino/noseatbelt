@@ -14,9 +14,8 @@ Currently the following transformations are applied:
 
 - [x] indirect calls via retpolines to direct calls (Spectre mitigation removal)
 - [x] returns via return thunks to direct returns (Spectre mitigation removal)
-- [x] Control Flow Guards removed (Windows CFI)
-- [ ] Control Flow Guards removed (LLVM and others)
-- [ ] Return Flow Guards removed
+- [x] Control Flow Integrity checks removed (Windows CFG)
+- [ ] Control Flow Integrity checks removed (LLVM and others)
 - [x] inlining of JMP instructions (to RET or JMP)
 - [x] redirecting of CALL instructions (to JMP or another CALL)
 - [ ] inlining of functions
