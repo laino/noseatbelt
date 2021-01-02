@@ -7,11 +7,17 @@
 #include <Zydis/Zydis.h>
 #include "dll-helper.h"
 
+/*
+ * A region of memory.
+ */
 typedef struct SeatbeltMemoryRegion_ {
     ZyanU8* start;
     ZyanU8* end;
 } SeatbeltMemoryRegion;
 
+/*
+ * A list of regions of memory.
+ */
 typedef struct SeatbeltMemory {
     ZyanUSize num_regions;
     SeatbeltMemoryRegion regions[];
@@ -83,16 +89,26 @@ DllExport typedef struct SeatbeltState_ {
     ZyanUSize invalid_instructions;
 } SeatbeltState;
 
-DllExport typedef struct TrampolineInformation_ {
-    ZydisRegister reg;
-} TrampolineInformation;
-
+/*
+ * Initializes a SeatbeltState struct.
+ */
 DllExport void init_seatbelt(SeatbeltState *state, ZydisMachineMode machine_mode, ZydisAddressWidth address_width);
 
+/*
+ * Applies transformations to the given range of instructions
+ * in memory.
+ */
 DllExport void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end);
 
+/*
+ * Tries to automatically detect information about the currently
+ * running program and apply transformations to it.
+ */
 DllExport void remove_all_seatbelts_auto();
 
 #ifdef WIN32
+/*
+ * Applies transformations to a loaded module (DLL, EXE, ...)
+ */
 DllExport void remove_module_seatbelts(SeatbeltState *state, HMODULE module);
 #endif

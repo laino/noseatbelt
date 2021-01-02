@@ -4,23 +4,42 @@
 #include <noseatbelt/noseatbelt.h>
 #include <noseatbelt/debug.h>
 
-// Allow at most 8 bytes for NOOPs
-#define MAX_DECODE_NOOP 8
-#define MAX_DECODE_INSTRUCTION_LENGTH 15 + MAX_DECODE_NOOP
-
-// How far to recursively resolve jumps
-#define MAX_JUMP_DEPTH 3
-
+// Debug helpers
 #define PINFO(state, fmt, ...) \
     DEBUG_PRINT(1, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
-
 #define PVERBOSE(state, fmt, ...) \
     DEBUG_PRINT(2, "%p %s: " fmt, state->current, ZydisMnemonicGetString(state->instruction->mnemonic), ##__VA_ARGS__)
+#define WINFO(start, fmt, ...) \
+    DEBUG_PRINT(1, "WRITE %p: " fmt, start, ##__VA_ARGS__)
 
-#define IS_VALID_MEMORY_ADDR(state, addr) \
-    (addr >= state->memory.start && addr < state->memory.end)
+/*
+ * Used for computing MAX_DECODE_INSTRUCTION_LENGTH.
+ *
+ * Since decode_next is able to skip NOPs, we pad the value
+ * with this.
+ */
+#define MAX_DECODE_NOOP 30
 
+/*
+ * Maximum length an instruction can have in bytes,
+ * for purposes of computing an upper bound of bytes
+ * to consider in decode_next.
+ */
+#define MAX_DECODE_INSTRUCTION_LENGTH 15 + MAX_DECODE_NOOP
+
+/*
+ * How far to recursively resolve jumps or calls.
+ */
+#define MAX_JUMP_DEPTH 3
+
+/*
+ * Computes a ModR/M byte.
+ */
 #define MODRM(mod, regOrOpcode, rm) mod << 6 | regOrOpcode << 3 | rm
+
+/*
+ * Zydis register to register code (number).
+ */
 static ZyanU8 register_code(ZydisRegister reg) {
     switch(reg) {
         // 16 bit
@@ -80,8 +99,18 @@ static ZyanU8 register_code(ZydisRegister reg) {
     }
 }
 
+/*
+ * Call this before accessing memory.
+ *
+ * Checks whether the memory is within the permitted regions
+ * and updates state->current_region_start and state->current_region_end
+ * with the dimensions of the region *addr resides in.
+ *
+ * Automatically grows current_region_start and current_region_end to
+ * encompass adjacent regions.
+ */
 static ZyanBool enter_region(SeatbeltState *state, ZyanU8 *addr) {
-    ZyanUSize i, i2;
+    ZyanUSize i;
     SeatbeltMemoryRegion *region;
     SeatbeltMemory *memory;
     ZyanU8 *start, *end;
@@ -138,7 +167,11 @@ static ZyanBool memory_location_from_immediate_operand(ZydisDecodedOperand *op, 
 }
 
 /*
- * Attempts to statically calculate the address of a memory operand if possible.
+ * Attempts to statically calculate the address of a memory operand.
+ *
+ * Memory operands are calculated using a value stored in memory.
+ * It is generally unsafe to use these for making predictions
+ * about control flow because they may change.
  */
 static ZyanBool memory_location_from_memory_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->mem.base == ZYDIS_REGISTER_RIP &&
@@ -152,7 +185,7 @@ static ZyanBool memory_location_from_memory_operand(SeatbeltState *state, ZydisD
 
         ZyanU8 *ptr = rip + op->mem.disp.value;
 
-        if (!enter_region(state, ptr)) {
+        if (!enter_region(state, ptr) || state->current_region_end <= ptr + sizeof(ZyanU8*)) {
             return 0;
         }
 
@@ -164,8 +197,17 @@ static ZyanBool memory_location_from_memory_operand(SeatbeltState *state, ZydisD
     return 0;
 }
 
+/*
+ * Whether the given operand is an indirect operand.
+ *
+ * An indirect operand is any operand whose computed value
+ * depends on bytes stored in a memory location.
+ */
 #define IS_INDIRECT_OPERAND(op) (op->type == ZYDIS_OPERAND_TYPE_MEMORY)
 
+/*
+ * Computes a memory location from an indirect operand.
+ */
 static inline ZyanBool memory_location_from_indirect_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->type == ZYDIS_OPERAND_TYPE_MEMORY) {
         return memory_location_from_memory_operand(state, op, rip, loc);
@@ -174,6 +216,9 @@ static inline ZyanBool memory_location_from_indirect_operand(SeatbeltState *stat
     return 0;
 }
 
+/*
+ * Computes a memory location from a direct operand.
+ */
 static inline ZyanBool memory_location_from_direct_operand(SeatbeltState *state, ZydisDecodedOperand *op, ZyanU8* rip, ZyanU8**loc) {
     if (op->type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
         return memory_location_from_immediate_operand(op, rip, loc);
@@ -181,9 +226,6 @@ static inline ZyanBool memory_location_from_direct_operand(SeatbeltState *state,
 
     return 0;
 }
-
-#define WINFO(start, fmt, ...) \
-    DEBUG_PRINT(1, "WRITE %p: " fmt, start, ##__VA_ARGS__)
 
 static ZyanU8 NOOP_TABLE[9][9] = {
     {0x90},
@@ -197,6 +239,9 @@ static ZyanU8 NOOP_TABLE[9][9] = {
     {0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00},
 };
 
+/*
+ * Fills *start to *end with NOPs.
+ */
 static void write_NOP(ZyanU8* start, ZyanU8* end) {
     ZyanU8 len;
 
@@ -234,7 +279,7 @@ static ZyanBool write_RET(ZyanU8* start, ZyanU8* end) {
 }
 
 /*
- * Inlines an instruction.
+ * Inlines instructions by copying them.
  */
 static ZyanBool write_inline(ZyanU8* dst, ZyanU8* src, ZyanU8 src_len, ZyanU8 dst_len) {
     if (src_len > dst_len) {
@@ -253,7 +298,7 @@ static ZyanBool write_inline(ZyanU8* dst, ZyanU8* src, ZyanU8 src_len, ZyanU8 ds
 }
 
 /*
- * Writes a JMP instruction.
+ * Writes a JMP instruction to a target address.
  */
 static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     ZyanU8 ow[5];
@@ -302,7 +347,7 @@ encode:
 }
 
 /*
- * Writes a CALL instruction.
+ * Writes a CALL instruction to a target address.
  */
 static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     if (start + 5 > end) {
@@ -337,9 +382,10 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
 }
 
 /*
- * Writes a CALL or JMP instruction to a memory location stored in reg.
+ * Writes a CALL or JMP instruction to a memory location stored in a register.
  */
 static ZyanBool write_CALL_or_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg, ZyanU8 opcode) {
+    // TODO I don't think registers smaller than 64 bit are supported correctly
     ZyanU8 reg_code = register_code(reg);
 
     ZyanU8 ow[3];
@@ -382,24 +428,36 @@ static ZyanBool write_CALL_or_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegi
 }
 
 /*
- * Writes a JMP instruction to a memory location stored in reg.
+ * Writes a JMP instruction to a memory location stored in a register.
  */
 static ZyanBool write_JMP_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     return write_CALL_or_JMP_register(start, end, reg, 4);
 }
 
 /*
- * Writes a CALL instruction to a memory location stored in reg.
+ * Writes a CALL instruction to a memory location stored in a register.
  */
 static ZyanBool write_CALL_register(ZyanU8* start, ZyanU8* end, ZydisRegister reg) {
     return write_CALL_or_JMP_register(start, end, reg, 2);
 }
 
+/*
+ * Flags passed to decode_next.
+ */
 enum DECODE_FLAGS {
     DECODE_FLAG_NONE = 0x0,
+
+    /* Automatically skip NOPs */
     DECODE_FLAG_SKIP_NOOP = 0x1
 };
 
+/*
+ * Decodes the next instruction at *start, stops at *end.
+ *
+ * The instruction information will be written to state->instruction.
+ *
+ * Also updates state->current and state->next.
+ */
 static ZyanStatus decode_next(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end, ZyanU8 flags) {
     ZyanStatus status = ZYAN_STATUS_SUCCESS;
 
@@ -446,16 +504,28 @@ static ZyanBool invalidate(SeatbeltState *state, ZyanU8 *address) {
     return 0;
 }
 
+// Shorthands
 #define INVALIDATE(state, start) invalidate(state, start)
 #define DECODE_OP(state, start, end) ZYAN_SUCCESS(decode_next(state, start, end, DECODE_FLAG_SKIP_NOOP))
 #define DECODE(state, start, end) ZYAN_SUCCESS(decode_next(state, start, end, DECODE_FLAG_NONE))
 
+// Helper
 #define EXPECT_OP(ins, state, start, end) \
     if (!DECODE_OP(state, start, end) || state->instruction->mnemonic != ZYDIS_MNEMONIC_ ## ins) {\
         PVERBOSE(state, "Expected " #ins "\n");\
         return 0;\
     }
 
+typedef struct TrampolineInformation_ {
+    ZydisRegister reg;
+} TrampolineInformation;
+
+/*
+ * Checks whether the instructions at *start are an indirect thunk (retpoline).
+ *
+ * It does *not* check for a 'valid' thunk header (CALL, LFENCE, PAUSE, JMP),
+ * but instead only whether the 'body' matches that of an indirect thunk (MOV, RET).
+ */
 static ZyanBool check_indirect_thunk(SeatbeltState *state, ZyanU8 *start, TrampolineInformation *info) {
     PVERBOSE(state, "Checking for indirect thunk at %p\n", start);
 
@@ -485,6 +555,12 @@ static ZyanBool check_indirect_thunk(SeatbeltState *state, ZyanU8 *start, Trampo
     return 1;
 }
 
+/*
+ * Checks whether the instructions at *start are a return thunk (retpoline).
+ *
+ * It does *not* check for a 'valid' thunk header (CALL, LFENCE, PAUSE, JMP),
+ * but instead only whether the 'body' matches that of a return thunk (LEA, RET).
+ */
 static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     PVERBOSE(state, "Checking for return thunk at %p\n", start);
 
@@ -516,6 +592,10 @@ static ZyanBool check_return_thunk(SeatbeltState *state, ZyanU8 *start) {
     return 1;
 };
 
+/*
+ * Flags with information about how the current
+ * instructions was rewritten.
+ */
 typedef enum REWRITE_FLAGS_{
     REWRITE_FLAG_NONE = 0x0,
     REWRITE_FLAG_REWRITE_RET = 0x1,
@@ -578,7 +658,16 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_NONE;
     }
 
-    // indirect thunk
+    /*
+     * This CALL points to an indirect thunk body and thus is likely
+     * the first instruction of the whole thunk.
+     *
+     * We 'defuse' the retpoline by rewriting it a JMP instruction
+     * that directly goes to the address in the appropriate register.
+     *
+     * When we parse CALLs and JMPs to this CALL, we will see this JMP
+     * instruction and inline it.
+     */
     if (check_indirect_thunk(state, target_address, &trampoline_info)) {
         if (!write_JMP_register(call_address, call_next, trampoline_info.reg)) {
             return REWRITE_FLAG_NONE;
@@ -595,14 +684,15 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_NONE;
     }
 
-    // Apply any transformations to the target address
+    // Make sure any transformations, such as defusing indirect thunks,
+    // are already applied to target_address.
     handle_instruction(state, jump_depth + 1);
 
     if (!DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH)) {
         return REWRITE_FLAG_NONE;
     }
 
-    // CALL redirected
+    // CALL redirect by a JMP. Could be a defused indirect thunk, for example.
     if (state->instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
         op0 = &state->instruction->operands[0];
 
@@ -634,7 +724,7 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_REWRITE_CALL;
     }
 
-    // (inline) return thunk
+    // (inline) return thunks start with a CALL.
     if (check_return_thunk(state, target_address)) {
         if (write_RET(call_address, call_next)) {
             INVALIDATE(state, call_address);
@@ -650,11 +740,13 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
     return REWRITE_FLAG_NONE;
 }
 
+/*
+ * Handles a JMP instruction and returns status other than 0 if it was rewritten.
+ */
 static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     ZyanU8 *target_address;
 
-    ZydisDecodedInstruction *instruction = state->instruction;
-    ZydisDecodedOperand *op0 = &instruction->operands[0];
+    ZydisDecodedOperand *op0 = &state->instruction->operands[0];
 
     ZyanU8 *jmp_address = state->current;
     ZyanU8 *jmp_next = state->next;
@@ -704,20 +796,17 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_NONE;
     }
 
-    // Apply any transformations to the target address
+    // Make sure any transformations, such as defusing indirect thunks,
+    // are already applied to target_address.
     handle_instruction(state, jump_depth + 1);
 
     if (!DECODE_OP(state, target_address, target_address + MAX_DECODE_INSTRUCTION_LENGTH)) {
         return REWRITE_FLAG_NONE;
     }
 
-    // Check whether we can inline whatever is at the target address
-    instruction = state->instruction;
-
-    // We can only inline instructions that jump somewhere else
-
-    if (instruction->mnemonic == ZYDIS_MNEMONIC_RET) {
-        if (!write_inline(jmp_address, target_address, instruction->length, jmp_next - jmp_address)) {
+    // A RET can be trivially inlined. Could be a defused return thunk.
+    if (state->instruction->mnemonic == ZYDIS_MNEMONIC_RET) {
+        if (!write_inline(jmp_address, target_address, state->instruction->length, jmp_next - jmp_address)) {
             return REWRITE_FLAG_NONE;
         }
 
@@ -728,8 +817,9 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
         return REWRITE_FLAG_REWRITE_INLINE;
     }
 
-    if (instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
-        op0 = &instruction->operands[0];
+    // JMP to a JMP, try to resolve it statically.
+    if (state->instruction->mnemonic == ZYDIS_MNEMONIC_JMP) {
+        op0 = &state->instruction->operands[0];
 
         if (op0->type == ZYDIS_OPERAND_TYPE_REGISTER) {
             if (!write_JMP_register(jmp_address, jmp_next, op0->reg.value)) {
@@ -762,6 +852,9 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     return REWRITE_FLAG_NONE;
 }
 
+/*
+ * Applies transformations to the current instruction.
+ */
 static REWRITE_FLAGS handle_instruction(SeatbeltState *state, ZyanU8 jump_depth) {
     if (jump_depth >= MAX_JUMP_DEPTH) {
         return REWRITE_FLAG_NONE;
@@ -831,8 +924,8 @@ void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end) {
     state->current_region_end = 0;
 }
 
-// Disabled. Could be used to implement "safe" mode later that does more validations.
 #if DISABLED_CODE
+// Disabled. Could be used to implement "safe" mode later that does more validations.
 /*
  * Checks whether there is a thunk head at start.
  * If yes, stores a pointer to the body in *thunk_body.
