@@ -15,7 +15,6 @@ void noseatbelt_debug_print(const char* fmt, ...) {
 
     if (debug_out_fd) {
         vfprintf(debug_out_fd, fmt, arg);
-        fflush(debug_out_fd);
     } else {
         vprintf(fmt, arg);
     }
