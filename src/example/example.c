@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <inttypes.h>
 #include <noseatbelt/noseatbelt.h>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -37,12 +38,13 @@ static void NOINLINE call_redirect() {
 }
 
 int main() {
-    remove_all_seatbelts_auto();
+    SeatbeltState state;
+    remove_all_seatbelts_auto(&state);
     what = test1;
     call_indirect1();
     call_indirect2();
     what = test2;
     call_redirect();
-    printf("Goodbye\n");
+    printf("%"PRIu64" instructions\n", state.instructions_processed);
     return 0;
 }

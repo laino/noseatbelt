@@ -47,11 +47,13 @@ BOOL WINAPI DllMain(
     LPVOID lpReserved )  // reserved
 {
 
+    SeatbeltState state;
+
     switch( fdwReason ) 
     { 
         case DLL_PROCESS_ATTACH:
             open_logfile();
-            remove_all_seatbelts_auto();
+            remove_all_seatbelts_auto(&state);
             break;
         case DLL_PROCESS_DETACH:
             close_logfile();

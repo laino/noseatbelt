@@ -3,6 +3,7 @@
 
 #include <noseatbelt/debug.h>
 
+#ifndef NDEBUG
 static FILE* debug_out_fd = 0;
 
 void noseatbelt_debug_set_fd(FILE* fd) {
@@ -22,3 +23,7 @@ void noseatbelt_debug_print(const char* fmt, ...) {
 
     va_end(arg);
 }
+#else
+void noseatbelt_debug_set_fd(FILE* fd) {};
+void noseatbelt_debug_print(const char* fmt, ...) {};
+#endif

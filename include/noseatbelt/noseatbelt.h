@@ -108,8 +108,10 @@ DllExport void remove_seatbelts(SeatbeltState *state, ZyanU8 *start, ZyanU8 *end
 /*
  * Tries to automatically detect information about the currently
  * running program and apply transformations to it.
+ * 
+ * Calls init_seatbelt with automtically detected values.
  */
-DllExport void remove_all_seatbelts_auto();
+DllExport void remove_all_seatbelts_auto(SeatbeltState *state);
 
 #ifdef WIN32
 /*

@@ -21,7 +21,9 @@ static int (*main_orig)(int, char**, char**);
 /* Our fake main() that gets called by __libc_start_main() */
 static int main_hook(int argc, char **argv, char **envp)
 {
-    remove_all_seatbelts_auto();
+    SeatbeltState state;
+
+    remove_all_seatbelts_auto(&state);
 
     int ret = main_orig(argc, argv, envp);
 
