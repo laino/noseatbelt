@@ -3,7 +3,7 @@ noseatbelt
 
 Remove mitigations from (running!) software.
 
-This library detects and removes mitigations (Spectre, CFG, ...) from a running program.
+This library detects and removes mitigations (Spectre, CFG, ...) from a running program and also applies some optimizations.
 
 Currently WIP.
 
