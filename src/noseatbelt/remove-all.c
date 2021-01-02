@@ -4,8 +4,7 @@
 #include <noseatbelt/noseatbelt.h>
 #include <noseatbelt/debug.h>
 
-#include "remove-all-win32.c"
-#include "remove-all-unix.c"
+void _remove_all_seatbelts(SeatbeltState *state);
 
 void remove_all_seatbelts_auto() {
     DEBUG_PRINT(1, "--NoSeatbelt-----------------\n\n");

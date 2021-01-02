@@ -16,16 +16,22 @@ void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     int i;
 
     old_memory = state->memory;
-
+    
     IMAGE_NT_HEADERS* pHeader = ImageNtHeader(pImage);
+
     ZyanU8* base_address = (ZyanU8*) pHeader->OptionalHeader.ImageBase;
+    
+    if (pHeader->OptionalHeader.NumberOfRvaAndSizes > 10) {
 
-    if (pHeader->OptionalHeader.NumberOfRvaAndSizes >= 10) {
-        IMAGE_LOAD_CONFIG_DIRECTORY *load_config = (IMAGE_LOAD_CONFIG_DIRECTORY*) 
-            (pHeader->OptionalHeader.DataDirectory[10].VirtualAddress + pHeader->OptionalHeader.ImageBase);
+        IMAGE_DATA_DIRECTORY *load_config_data_dir = &pHeader->OptionalHeader.DataDirectory[10];
 
-        state->nt_config.cf_check_function =  *((ZyanU8**) load_config->GuardCFCheckFunctionPointer);
-        state->nt_config.cf_dispatch_function = *((ZyanU8**) load_config->GuardCFDispatchFunctionPointer);
+        if (load_config_data_dir->VirtualAddress) {
+            IMAGE_LOAD_CONFIG_DIRECTORY *load_config = (IMAGE_LOAD_CONFIG_DIRECTORY*) 
+                (load_config_data_dir->VirtualAddress + pHeader->OptionalHeader.ImageBase);
+
+            state->nt_config.cf_check_function =  *((ZyanU8**) load_config->GuardCFCheckFunctionPointer);
+            state->nt_config.cf_dispatch_function = *((ZyanU8**) load_config->GuardCFDispatchFunctionPointer);
+        }
     }
 
     memory = malloc(sizeof(SeatbeltMemory) + sizeof(SeatbeltMemoryRegion) * MAX_REGIONS);
@@ -34,8 +40,6 @@ void remove_module_seatbelts(SeatbeltState *state, HMODULE pImage) {
     memory->regions[0].end = base_address + pHeader->OptionalHeader.SizeOfImage;
     state->memory = memory;
 
-    printf("%p, %p\n", memory->regions[0].start, memory->regions[0].end);
-    
     IMAGE_SECTION_HEADER* pSectionHeaders = (IMAGE_SECTION_HEADER*) (pHeader + 1);
 
     for (ZyanU8 count = 0u; count < pHeader->FileHeader.NumberOfSections; ++count) {

@@ -307,7 +307,7 @@ static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     ZyanI64 offset;
 
     offset = target - start - 2;
-    if (offset > -(ZyanI64)0x8F && offset < (ZyanI64)0x8F) {
+    if (offset >= -0x7F && offset <= 0x7F) {
         // Fits in 8 bit offset
         len = 2;
         ow[0] = 0xEB;
@@ -317,7 +317,7 @@ static ZyanBool write_JMP(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
     }
 
     offset = target - start - 5;
-    if (offset > -(ZyanI64)0x8FFFFFFF && offset < (ZyanI64)0x8FFFFFFF) {
+    if (offset >= -0x7FFFFFFF && offset <= 0x7FFFFFFF) {
         // Fits in 32 bit offset
         // 32COMPAT: On 32 bit this is rel16
         len = 5;
@@ -359,7 +359,7 @@ static ZyanBool write_CALL(ZyanU8* start, ZyanU8* end, ZyanU8* target) {
 
     ZyanI64 offset = target - end;
 
-    if (offset <= -(ZyanI64)0x8FFFFFFF || offset >= (ZyanI64)0x8FFFFFFF) {
+    if (offset < -0x7FFFFFFF || offset > 0x7FFFFFFF) {
         return 0;
     }
 
@@ -628,9 +628,8 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
             return REWRITE_FLAG_NONE;
         }
     }
-
-    // CALL to _guard_dispatch_icall
-    if (target_address == state->nt_config.cf_dispatch_function) {
+    
+    if (target_address && target_address == state->nt_config.cf_dispatch_function) {
         if (!write_CALL_register(call_address, call_next, ZYDIS_REGISTER_RAX)) {
             return REWRITE_FLAG_NONE;
         }
@@ -643,7 +642,7 @@ static ZyanBool handle_call(SeatbeltState *state, ZyanU8 jump_depth) {
     }
 
     // CALL to _guard_check_icall
-    if (target_address == state->nt_config.cf_check_function) {
+    if (target_address && target_address == state->nt_config.cf_check_function) {
         write_NOP(call_address, call_next);
 
         INVALIDATE(state, call_address);
@@ -762,7 +761,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     }
 
     // JMP to _guard_dispatch_icall
-    if (target_address == state->nt_config.cf_dispatch_function) {
+    if (target_address && target_address == state->nt_config.cf_dispatch_function) {
         if (!write_JMP_register(jmp_address, jmp_next, ZYDIS_REGISTER_RAX)) {
             return REWRITE_FLAG_NONE;
         }
@@ -775,7 +774,7 @@ static REWRITE_FLAGS handle_jmp(SeatbeltState *state, ZyanU8 jump_depth) {
     }
 
     // JMP to _guard_check_icall
-    if (target_address == state->nt_config.cf_check_function) {
+    if (target_address && target_address == state->nt_config.cf_check_function) {
         if (!write_RET(jmp_address, jmp_next)) {
             return REWRITE_FLAG_NONE;
         }

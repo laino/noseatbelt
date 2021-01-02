@@ -9,7 +9,7 @@
 
 #define MAX_REGIONS 512
 
-static void _remove_all_seatbelts(SeatbeltState *state) {
+void _remove_all_seatbelts(SeatbeltState *state) {
     SeatbeltMemory* memory, *old_memory;
     SeatbeltMemoryRegion *region;
     FILE *fp;
