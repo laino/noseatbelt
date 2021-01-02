@@ -15,15 +15,19 @@ Support
 - [x] Windows 64bit
 - [ ] Windows 32bit
 
-Removes
--------
+Transformations
+---------------
 
-- [x] indirect calls via retpolines (Spectre mitigation)
-- [x] returns via return thunks (Spectre mitigation)
-- [x] Control Flow Guards (Windows CFI)
-- [ ] Return Flow Guards
-- [x] jumps that can be inlined
-- [ ] calls to functions that can be inlined
+Currently the following transformations are applied:
+
+- [x] indirect calls via retpolines to direct calls (Spectre mitigation removal)
+- [x] returns via return thunks to direct returns (Spectre mitigation removal)
+- [x] Control Flow Guards removed (Windows CFI)
+- [ ] Control Flow Guards removed (LLVM and others)
+- [ ] Return Flow Guards removed
+- [x] inlining of JMP instructions (to RET or JMP)
+- [x] redirecting of CALL instructions (to JMP or another CALL)
+- [ ] inlining of functions
 
 Build
 -----
